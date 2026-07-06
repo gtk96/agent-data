@@ -2,6 +2,7 @@
 SQL database connector.
 """
 
+import asyncio
 import re
 import sqlite3
 import time
@@ -35,7 +36,7 @@ class SQLConnector(BaseConnector):
 
     async def connect(self) -> None:
         """Establish database connection."""
-        self._connection = sqlite3.connect(self._db_path)
+        self._connection = sqlite3.connect(self._db_path, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
         self._connected = True
 
@@ -54,22 +55,10 @@ class SQLConnector(BaseConnector):
         start_time = time.time()
 
         try:
-            if query.query_type == QueryType.SELECT:
-                return await self._execute_select(query)
-            elif query.query_type == QueryType.INSERT:
-                return await self._execute_insert(query)
-            elif query.query_type == QueryType.UPDATE:
-                return await self._execute_update(query)
-            elif query.query_type == QueryType.DELETE:
-                return await self._execute_delete(query)
-            elif query.query_type == QueryType.SEARCH:
-                return await self._execute_search(query)
-            else:
-                return QueryResult(
-                    source=self.name,
-                    error=f"Unsupported query type: {query.query_type}",
-                    query_time_ms=(time.time() - start_time) * 1000,
-                )
+            # Use asyncio.to_thread for true async execution
+            result = await asyncio.to_thread(self._execute_sync, query)
+            result.query_time_ms = (time.time() - start_time) * 1000
+            return result
         except Exception as e:
             return QueryResult(
                 source=self.name,
@@ -77,8 +66,26 @@ class SQLConnector(BaseConnector):
                 query_time_ms=(time.time() - start_time) * 1000,
             )
 
-    async def _execute_select(self, query: Query) -> QueryResult:
-        """Execute a SELECT query."""
+    def _execute_sync(self, query: Query) -> QueryResult:
+        """Execute a SQL query synchronously."""
+        if query.query_type == QueryType.SELECT:
+            return self._execute_select_sync(query)
+        elif query.query_type == QueryType.INSERT:
+            return self._execute_insert_sync(query)
+        elif query.query_type == QueryType.UPDATE:
+            return self._execute_update_sync(query)
+        elif query.query_type == QueryType.DELETE:
+            return self._execute_delete_sync(query)
+        elif query.query_type == QueryType.SEARCH:
+            return self._execute_search_sync(query)
+        else:
+            return QueryResult(
+                source=self.name,
+                error=f"Unsupported query type: {query.query_type}",
+            )
+
+    def _execute_select_sync(self, query: Query) -> QueryResult:
+        """Execute a SELECT query synchronously."""
         sql_parts = ["SELECT"]
 
         # Fields
@@ -126,8 +133,8 @@ class SQLConnector(BaseConnector):
             metadata={"sql": sql, "params": params},
         )
 
-    async def _execute_search(self, query: Query) -> QueryResult:
-        """Execute a search query (simple LIKE-based search)."""
+    def _execute_search_sync(self, query: Query) -> QueryResult:
+        """Execute a search query synchronously."""
         # For search queries, try to find text to search for
         search_text = query.query or ""
 
@@ -163,8 +170,8 @@ class SQLConnector(BaseConnector):
             metadata={"sql": sql, "params": params},
         )
 
-    async def _execute_insert(self, query: Query) -> QueryResult:
-        """Execute an INSERT query."""
+    def _execute_insert_sync(self, query: Query) -> QueryResult:
+        """Execute an INSERT query synchronously."""
         data = query.metadata.get("data", {})
         if not data:
             return QueryResult(
@@ -186,8 +193,8 @@ class SQLConnector(BaseConnector):
             metadata={"sql": sql, "rows_affected": cursor.rowcount},
         )
 
-    async def _execute_update(self, query: Query) -> QueryResult:
-        """Execute an UPDATE query."""
+    def _execute_update_sync(self, query: Query) -> QueryResult:
+        """Execute an UPDATE query synchronously."""
         data = query.metadata.get("data", {})
         if not data:
             return QueryResult(
@@ -214,8 +221,8 @@ class SQLConnector(BaseConnector):
             metadata={"sql": sql, "rows_affected": cursor.rowcount},
         )
 
-    async def _execute_delete(self, query: Query) -> QueryResult:
-        """Execute a DELETE query."""
+    def _execute_delete_sync(self, query: Query) -> QueryResult:
+        """Execute a DELETE query synchronously."""
         where_clause, params = self._build_where_clause(query.filters)
 
         sql = f"DELETE FROM {_validate_identifier(query.source)}"
