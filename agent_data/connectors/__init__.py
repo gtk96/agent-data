@@ -43,6 +43,14 @@ try:
 except ImportError:
     pass
 
+# Pinecone connector
+try:
+    from agent_data.connectors.pinecone import PineconeConnector
+
+    register_connector("pinecone", PineconeConnector)
+except ImportError:
+    pass
+
 # REST API connector
 try:
     from agent_data.connectors.rest_api import RESTAPIConnector
