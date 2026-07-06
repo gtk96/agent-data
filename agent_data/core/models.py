@@ -34,12 +34,11 @@ class DataSourceConfig(BaseModel):
 class DataSource(BaseModel):
     """Data source definition."""
 
+    model_config = {"use_enum_values": True}
+
     config: DataSourceConfig
     description: Optional[str] = Field(None, description="Data source description")
     tags: List[str] = Field(default_factory=list, description="Tags")
-
-    class Config:
-        use_enum_values = True
 
     @property
     def name(self) -> str:

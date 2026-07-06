@@ -121,7 +121,7 @@ class AgentDataClient:
         key_parts = {
             "source": query.source,
             "query_type": query.query_type,
-            "filters": [f.dict() for f in query.filters] if query.filters else [],
+            "filters": [f.model_dump() for f in query.filters] if query.filters else [],
             "fields": query.fields,
             "limit": query.limit,
             "offset": query.offset,
@@ -204,7 +204,7 @@ class AgentDataClient:
             if self._cache_enabled and cache_key and not result.error:
                 await self._cache.set(
                     cache_key,
-                    result.dict(),
+                    result.model_dump(),
                     ttl=self._cache_ttl,
                 )
 

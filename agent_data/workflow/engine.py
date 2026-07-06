@@ -73,7 +73,7 @@ class WorkflowEngine:
         return {
             "state": state.data,
             "history": state.history,
-            "results": [r.dict() for r in results],
+            "results": [r.model_dump() for r in results],
         }
 
     async def execute_parallel(
@@ -104,6 +104,6 @@ class WorkflowEngine:
 
         return {
             "results": [
-                r.dict() if isinstance(r, StepResult) else {"error": str(r)} for r in results
+                r.model_dump() if isinstance(r, StepResult) else {"error": str(r)} for r in results
             ]
         }
