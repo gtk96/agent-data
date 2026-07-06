@@ -159,9 +159,9 @@ class AgentDataClient:
             span = await self._tracer.start_span(
                 name="query",
                 attributes={
-                    "query_type": query.query_type
-                    if isinstance(query, Query)
-                    else "natural_language",
+                    "query_type": (
+                        query.query_type if isinstance(query, Query) else "natural_language"
+                    ),
                     "source": query.source if isinstance(query, Query) else "auto",
                     "has_context": context is not None,
                 },

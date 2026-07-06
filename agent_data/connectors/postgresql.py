@@ -328,9 +328,11 @@ class PostgreSQLConnector(BaseConnector):
         # This is a placeholder - actual implementation would query information_schema
         return {
             "type": "postgresql",
-            "connection": self._connection_string.split("@")[-1]
-            if "@" in self._connection_string
-            else "localhost",
+            "connection": (
+                self._connection_string.split("@")[-1]
+                if "@" in self._connection_string
+                else "localhost"
+            ),
         }
 
     async def get_tables(self) -> List[str]:

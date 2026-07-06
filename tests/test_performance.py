@@ -95,7 +95,7 @@ async def setup_client():
     return client
 
 
-async def test_query_performance():
+async def _bench_query():
     """测试查询性能"""
     client = await setup_client()
 
@@ -103,7 +103,7 @@ async def test_query_performance():
     return result
 
 
-async def test_filtered_query_performance():
+async def _bench_filtered_query():
     """测试带过滤器的查询性能"""
     client = await setup_client()
 
@@ -118,7 +118,7 @@ async def test_filtered_query_performance():
     return result
 
 
-async def test_cached_query_performance():
+async def _bench_cached_query():
     """测试缓存查询性能"""
     client = await setup_client()
 
@@ -130,7 +130,7 @@ async def test_cached_query_performance():
     return result
 
 
-async def test_batch_query_performance():
+async def _bench_batch_query():
     """测试批量查询性能"""
     client = await setup_client()
 
@@ -141,7 +141,7 @@ async def test_batch_query_performance():
     return results
 
 
-async def test_task_execution_performance():
+async def _bench_task_execution():
     """测试任务执行性能"""
     client = await setup_client()
 
@@ -153,7 +153,7 @@ async def test_task_execution_performance():
     return result
 
 
-async def test_workflow_performance():
+async def _bench_workflow():
     """测试工作流性能"""
     client = await setup_client()
 
@@ -176,7 +176,7 @@ async def test_workflow_performance():
     return result
 
 
-async def test_agent_loop_performance():
+async def _bench_agent_loop():
     """测试 Agent Loop 性能"""
     client = await setup_client()
 
@@ -205,25 +205,25 @@ def run_benchmarks():
     results = {}
 
     print("1. 查询性能")
-    results["query"] = benchmark("基础查询", test_query_performance, iterations=100)
+    results["query"] = benchmark("基础查询", _bench_query, iterations=100)
 
     print("2. 过滤查询性能")
-    results["filtered_query"] = benchmark("过滤查询", test_filtered_query_performance, iterations=100)
+    results["filtered_query"] = benchmark("过滤查询", _bench_filtered_query, iterations=100)
 
     print("3. 缓存查询性能")
-    results["cached_query"] = benchmark("缓存查询", test_cached_query_performance, iterations=100)
+    results["cached_query"] = benchmark("缓存查询", _bench_cached_query, iterations=100)
 
     print("4. 批量查询性能")
-    results["batch_query"] = benchmark("批量查询(10并行)", test_batch_query_performance, iterations=50)
+    results["batch_query"] = benchmark("批量查询(10并行)", _bench_batch_query, iterations=50)
 
     print("5. 任务执行性能")
-    results["task"] = benchmark("任务执行", test_task_execution_performance, iterations=100)
+    results["task"] = benchmark("任务执行", _bench_task_execution, iterations=100)
 
     print("6. 工作流性能")
-    results["workflow"] = benchmark("工作流(3步骤)", test_workflow_performance, iterations=100)
+    results["workflow"] = benchmark("工作流(3步骤)", _bench_workflow, iterations=100)
 
     print("7. Agent Loop 性能")
-    results["loop"] = benchmark("Agent Loop(10迭代)", test_agent_loop_performance, iterations=50)
+    results["loop"] = benchmark("Agent Loop(10迭代)", _bench_agent_loop, iterations=50)
 
     # 汇总
     print("=" * 60)
