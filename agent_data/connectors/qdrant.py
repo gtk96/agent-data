@@ -231,7 +231,13 @@ class QdrantConnector(BaseConnector):
         if not filters:
             return None
 
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import (
+            Filter,
+            FieldCondition,
+            MatchValue,
+            MatchAny,
+            Range,
+        )
 
         conditions = []
         for f in filters:
@@ -240,6 +246,49 @@ class QdrantConnector(BaseConnector):
                     FieldCondition(
                         key=f.field,
                         match=MatchValue(value=f.value),
+                    )
+                )
+            elif f.operator == "ne":
+                # Qdrant doesn't have direct neq, use must_not
+                conditions.append(
+                    FieldCondition(
+                        key=f.field,
+                        match=MatchValue(value=f.value),
+                    )
+                )
+            elif f.operator == "gt":
+                conditions.append(
+                    FieldCondition(
+                        key=f.field,
+                        range=Range(gt=f.value),
+                    )
+                )
+            elif f.operator == "gte":
+                conditions.append(
+                    FieldCondition(
+                        key=f.field,
+                        range=Range(gte=f.value),
+                    )
+                )
+            elif f.operator == "lt":
+                conditions.append(
+                    FieldCondition(
+                        key=f.field,
+                        range=Range(lt=f.value),
+                    )
+                )
+            elif f.operator == "lte":
+                conditions.append(
+                    FieldCondition(
+                        key=f.field,
+                        range=Range(lte=f.value),
+                    )
+                )
+            elif f.operator == "in":
+                conditions.append(
+                    FieldCondition(
+                        key=f.field,
+                        match=MatchAny(any=f.value),
                     )
                 )
 

@@ -74,11 +74,10 @@ try:
             """Run the tool asynchronously."""
             try:
                 # Build query object
-                qt = (
-                    QueryType(query_type)
-                    if query_type in QueryType.__members__.values()
-                    else QueryType.SEARCH
-                )
+                try:
+                    qt = QueryType(query_type)
+                except ValueError:
+                    qt = QueryType.SEARCH
 
                 # Parse filters if provided
                 query_filters = []

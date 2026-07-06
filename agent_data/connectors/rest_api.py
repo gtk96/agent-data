@@ -26,6 +26,7 @@ class RESTAPIConnector(BaseConnector):
         self._headers = config.metadata.get("headers", {})
         self._auth = config.metadata.get("auth", None)
         self._timeout = config.metadata.get("timeout", 30)
+        self._metadata = config.metadata
         self._session = None
 
     async def connect(self) -> None:

@@ -2,6 +2,7 @@
 SQL database connector.
 """
 
+import re
 import sqlite3
 import time
 from typing import Any, Dict, List, Optional
@@ -14,6 +15,14 @@ from agent_data.core.models import (
     QueryResult,
     QueryType,
 )
+
+
+def _validate_identifier(name: str) -> str:
+    """Validate and sanitize SQL identifier to prevent injection."""
+    # Only allow alphanumeric characters and underscores
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
+        raise ValueError(f"Invalid identifier: {name}")
+    return name
 
 
 class SQLConnector(BaseConnector):
@@ -74,12 +83,13 @@ class SQLConnector(BaseConnector):
 
         # Fields
         if query.fields:
-            sql_parts.append(", ".join(query.fields))
+            validated_fields = [_validate_identifier(f) for f in query.fields]
+            sql_parts.append(", ".join(validated_fields))
         else:
             sql_parts.append("*")
 
         # FROM
-        sql_parts.append(f"FROM {query.source}")
+        sql_parts.append(f"FROM {_validate_identifier(query.source)}")
 
         # WHERE
         where_clause, params = self._build_where_clause(query.filters)
@@ -89,7 +99,7 @@ class SQLConnector(BaseConnector):
         # ORDER BY
         if query.order_by:
             order = "DESC" if query.order_desc else "ASC"
-            sql_parts.append(f"ORDER BY {query.order_by} {order}")
+            sql_parts.append(f"ORDER BY {_validate_identifier(query.order_by)} {order}")
 
         # LIMIT
         if query.limit:
@@ -122,7 +132,7 @@ class SQLConnector(BaseConnector):
         search_text = query.query or ""
 
         # Build a simple LIKE query
-        sql = f"SELECT * FROM {query.source}"
+        sql = f"SELECT * FROM {_validate_identifier(query.source)}"
         params = []
 
         if search_text:
@@ -130,7 +140,7 @@ class SQLConnector(BaseConnector):
             like_clause = f"%{search_text}%"
             where_parts = []
             for col in self._get_text_columns(query.source):
-                where_parts.append(f"{col} LIKE ?")
+                where_parts.append(f"{_validate_identifier(col)} LIKE ?")
                 params.append(like_clause)
             if where_parts:
                 sql += f" WHERE {' OR '.join(where_parts)}"
@@ -162,9 +172,10 @@ class SQLConnector(BaseConnector):
                 error="No data provided for INSERT",
             )
 
-        columns = ", ".join(data.keys())
+        validated_columns = [_validate_identifier(k) for k in data.keys()]
+        columns = ", ".join(validated_columns)
         placeholders = ", ".join(["?"] * len(data))
-        sql = f"INSERT INTO {query.source} ({columns}) VALUES ({placeholders})"
+        sql = f"INSERT INTO {_validate_identifier(query.source)} ({columns}) VALUES ({placeholders})"
 
         cursor = self._connection.execute(sql, list(data.values()))
         self._connection.commit()
@@ -184,10 +195,10 @@ class SQLConnector(BaseConnector):
                 error="No data provided for UPDATE",
             )
 
-        set_parts = [f"{k} = ?" for k in data.keys()]
+        set_parts = [f"{_validate_identifier(k)} = ?" for k in data.keys()]
         where_clause, params = self._build_where_clause(query.filters)
 
-        sql = f"UPDATE {query.source} SET {', '.join(set_parts)}"
+        sql = f"UPDATE {_validate_identifier(query.source)} SET {', '.join(set_parts)}"
         if where_clause:
             sql += f" WHERE {where_clause}"
             params = list(data.values()) + params
@@ -207,7 +218,7 @@ class SQLConnector(BaseConnector):
         """Execute a DELETE query."""
         where_clause, params = self._build_where_clause(query.filters)
 
-        sql = f"DELETE FROM {query.source}"
+        sql = f"DELETE FROM {_validate_identifier(query.source)}"
         if where_clause:
             sql += f" WHERE {where_clause}"
 
@@ -229,33 +240,34 @@ class SQLConnector(BaseConnector):
         params = []
 
         for f in filters:
+            validated_field = _validate_identifier(f.field)
             if f.operator == "eq":
-                conditions.append(f"{f.field} = ?")
+                conditions.append(f"{validated_field} = ?")
                 params.append(f.value)
             elif f.operator == "ne":
-                conditions.append(f"{f.field} != ?")
+                conditions.append(f"{validated_field} != ?")
                 params.append(f.value)
             elif f.operator == "gt":
-                conditions.append(f"{f.field} > ?")
+                conditions.append(f"{validated_field} > ?")
                 params.append(f.value)
             elif f.operator == "lt":
-                conditions.append(f"{f.field} < ?")
+                conditions.append(f"{validated_field} < ?")
                 params.append(f.value)
             elif f.operator == "gte":
-                conditions.append(f"{f.field} >= ?")
+                conditions.append(f"{validated_field} >= ?")
                 params.append(f.value)
             elif f.operator == "lte":
-                conditions.append(f"{f.field} <= ?")
+                conditions.append(f"{validated_field} <= ?")
                 params.append(f.value)
             elif f.operator == "in":
                 placeholders = ", ".join(["?"] * len(f.value))
-                conditions.append(f"{f.field} IN ({placeholders})")
+                conditions.append(f"{validated_field} IN ({placeholders})")
                 params.extend(f.value)
             elif f.operator == "like":
-                conditions.append(f"{f.field} LIKE ?")
+                conditions.append(f"{validated_field} LIKE ?")
                 params.append(f.value)
             elif f.operator == "contains":
-                conditions.append(f"{f.field} LIKE ?")
+                conditions.append(f"{validated_field} LIKE ?")
                 params.append(f"%{f.value}%")
             else:
                 raise ValueError(f"Unsupported operator: {f.operator}")
