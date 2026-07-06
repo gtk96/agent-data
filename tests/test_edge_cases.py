@@ -36,6 +36,7 @@ def run_async(coro):
 
 # ==================== Task 边界测试 ====================
 
+
 def test_task_empty_name():
     """测试空名称任务"""
     task = Task(name="")
@@ -84,6 +85,7 @@ def test_task_block_unblock():
 
 # ==================== Query 边界测试 ====================
 
+
 def test_query_empty_filters():
     """测试空过滤器"""
     query = Query(source="test", query_type=QueryType.SELECT, filters=[])
@@ -99,6 +101,7 @@ def test_query_default_values():
 
 
 # ==================== Executor 边界测试 ====================
+
 
 def test_executor_no_handler():
     """测试没有注册处理器的任务"""
@@ -151,6 +154,7 @@ def test_executor_exception():
 
 
 # ==================== Workflow 边界测试 ====================
+
 
 def test_workflow_empty_steps():
     """测试空工作流"""
@@ -215,6 +219,7 @@ def test_workflow_state_sharing():
 
 # ==================== Loop 边界测试 ====================
 
+
 def test_loop_immediate_complete():
     """测试立即完成"""
 
@@ -256,6 +261,7 @@ def test_loop_exception_in_step():
 
 
 # ==================== Client 边界测试 ====================
+
 
 def test_client_empty_data_sources():
     """测试空数据源"""

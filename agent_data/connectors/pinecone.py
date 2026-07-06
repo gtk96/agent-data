@@ -136,11 +136,13 @@ class PineconeConnector(BaseConnector):
         # Format vectors for Pinecone
         formatted_vectors = []
         for v in vectors:
-            formatted_vectors.append({
-                "id": v["id"],
-                "values": v["vector"],
-                "metadata": v.get("metadata", {}),
-            })
+            formatted_vectors.append(
+                {
+                    "id": v["id"],
+                    "values": v["vector"],
+                    "metadata": v.get("metadata", {}),
+                }
+            )
 
         self._index.upsert(vectors=formatted_vectors)
 

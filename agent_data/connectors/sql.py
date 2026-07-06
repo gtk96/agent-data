@@ -21,7 +21,7 @@ from agent_data.core.models import (
 def _validate_identifier(name: str) -> str:
     """Validate and sanitize SQL identifier to prevent injection."""
     # Only allow alphanumeric characters and underscores
-    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name):
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
         raise ValueError(f"Invalid identifier: {name}")
     return name
 
@@ -182,7 +182,9 @@ class SQLConnector(BaseConnector):
         validated_columns = [_validate_identifier(k) for k in data.keys()]
         columns = ", ".join(validated_columns)
         placeholders = ", ".join(["?"] * len(data))
-        sql = f"INSERT INTO {_validate_identifier(query.source)} ({columns}) VALUES ({placeholders})"
+        sql = (
+            f"INSERT INTO {_validate_identifier(query.source)} ({columns}) VALUES ({placeholders})"
+        )
 
         cursor = self._connection.execute(sql, list(data.values()))
         self._connection.commit()

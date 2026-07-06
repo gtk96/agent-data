@@ -58,6 +58,7 @@ def benchmark(name, func, iterations=100):
 
 # ==================== 测试函数 ====================
 
+
 async def setup_client():
     """创建测试客户端"""
     data_sources = [
@@ -73,14 +74,16 @@ async def setup_client():
 
     # 初始化数据库
     connector = await client._get_connector("test_db")
-    connector._connection.execute("""
+    connector._connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             name TEXT,
             email TEXT,
             status TEXT
         )
-    """)
+    """
+    )
 
     # 插入测试数据
     for i in range(1000):
@@ -96,9 +99,7 @@ async def test_query_performance():
     """测试查询性能"""
     client = await setup_client()
 
-    result = await client.query(
-        Query(source="test_db", query_type=QueryType.SELECT, limit=100)
-    )
+    result = await client.query(Query(source="test_db", query_type=QueryType.SELECT, limit=100))
     return result
 
 
@@ -134,10 +135,7 @@ async def test_batch_query_performance():
     client = await setup_client()
 
     results = await client.batch_query(
-        queries=[
-            Query(source="test_db", query_type=QueryType.SELECT, limit=10)
-            for _ in range(10)
-        ],
+        queries=[Query(source="test_db", query_type=QueryType.SELECT, limit=10) for _ in range(10)],
         parallel=True,
     )
     return results
@@ -195,6 +193,7 @@ async def test_agent_loop_performance():
 
 
 # ==================== 运行基准测试 ====================
+
 
 def run_benchmarks():
     """运行所有基准测试"""
