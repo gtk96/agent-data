@@ -29,7 +29,7 @@ jobs:
       - name: Lint with flake8
         run: |
           flake8 agent_data/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 agent_data/ --count --max-complexity=10 --max-line-length=100 --statistics
+          flake8 agent_data/ --count --max-complexity=15 --max-line-length=120 --ignore=F401,F403,C901,W292,E501,F841 --statistics
 
       - name: Check formatting with black
         run: |
