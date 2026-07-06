@@ -73,8 +73,10 @@ class QdrantConnector(BaseConnector):
 
     async def _similarity_search(self, query: Query) -> QueryResult:
         """Perform similarity search."""
+        import time
         from qdrant_client.models import Filter, FieldCondition, MatchValue
 
+        start_time = time.time()
         query_vector = query.metadata.get("vector", None)
         query_text = query.query or ""
         n_results = query.limit or 10

@@ -42,7 +42,9 @@ class AgentOrchestrator:
         agent.receive(message)
         return await agent.process(message)
 
-    async def broadcast(self, sender_id: str, content: Any, message_type: str = "broadcast") -> List[AgentMessage]:
+    async def broadcast(
+        self, sender_id: str, content: Any, message_type: str = "broadcast"
+    ) -> List[AgentMessage]:
         """Broadcast message to all agents except sender."""
         responses = []
         for agent_id, agent in self._agents.items():
@@ -90,10 +92,12 @@ class AgentOrchestrator:
             task = step.get("task")
 
             result = await self.execute_task(task, task_type, sender_id)
-            results.append({
-                "step": step,
-                "result": result.content if result else None,
-                "success": result is not None,
-            })
+            results.append(
+                {
+                    "step": step,
+                    "result": result.content if result else None,
+                    "success": result is not None,
+                }
+            )
 
         return results

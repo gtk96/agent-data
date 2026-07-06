@@ -58,9 +58,7 @@ try:
                         self._arun(query, source, query_type, filters, limit)
                     )
             except RuntimeError:
-                result = asyncio.run(
-                    self._arun(query, source, query_type, filters, limit)
-                )
+                result = asyncio.run(self._arun(query, source, query_type, filters, limit))
 
             return result
 
@@ -76,7 +74,11 @@ try:
             """Run the tool asynchronously."""
             try:
                 # Build query object
-                qt = QueryType(query_type) if query_type in QueryType.__members__.values() else QueryType.SEARCH
+                qt = (
+                    QueryType(query_type)
+                    if query_type in QueryType.__members__.values()
+                    else QueryType.SEARCH
+                )
 
                 # Parse filters if provided
                 query_filters = []

@@ -54,7 +54,9 @@ class OpenTelemetryTracer(BaseTracer):
         resource = Resource.create(resource_attributes)
 
         # Create tracer provider
-        self._provider = TracerProvider(resource=resource, sampler=trace.sampling.TraceIdRatioBased(sample_rate))
+        self._provider = TracerProvider(
+            resource=resource, sampler=trace.sampling.TraceIdRatioBased(sample_rate)
+        )
 
         # Add exporter if endpoint is provided
         if endpoint:

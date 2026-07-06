@@ -103,7 +103,9 @@ class SQLConnector(BaseConnector):
 
         cursor = self._connection.execute(sql, params)
         rows = cursor.fetchall()
-        columns = [description[0] for description in cursor.description] if cursor.description else []
+        columns = (
+            [description[0] for description in cursor.description] if cursor.description else []
+        )
 
         data = [dict(zip(columns, row)) for row in rows]
 
@@ -138,7 +140,9 @@ class SQLConnector(BaseConnector):
 
         cursor = self._connection.execute(sql, params)
         rows = cursor.fetchall()
-        columns = [description[0] for description in cursor.description] if cursor.description else []
+        columns = (
+            [description[0] for description in cursor.description] if cursor.description else []
+        )
 
         data = [dict(zip(columns, row)) for row in rows]
 
@@ -263,9 +267,7 @@ class SQLConnector(BaseConnector):
         cursor = self._connection.execute(f"PRAGMA table_info({table_name})")
         columns = cursor.fetchall()
         return [
-            col[1]
-            for col in columns
-            if col[2].upper() in ("TEXT", "VARCHAR", "CHAR", "STRING")
+            col[1] for col in columns if col[2].upper() in ("TEXT", "VARCHAR", "CHAR", "STRING")
         ]
 
     async def health_check(self) -> bool:
@@ -279,9 +281,7 @@ class SQLConnector(BaseConnector):
 
     def get_schema(self) -> Dict[str, Any]:
         """Get database schema."""
-        cursor = self._connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )
+        cursor = self._connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [row[0] for row in cursor.fetchall()]
 
         schema = {}

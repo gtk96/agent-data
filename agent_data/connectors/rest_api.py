@@ -32,6 +32,7 @@ class RESTAPIConnector(BaseConnector):
         """Initialize HTTP session."""
         try:
             import aiohttp
+
             self._session = aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=self._timeout),
                 headers=self._headers,
@@ -75,13 +76,19 @@ class RESTAPIConnector(BaseConnector):
                 async with self._session.get(url, params=params, headers=headers) as response:
                     return await self._handle_response(response, query, start_time)
             elif method == "POST":
-                async with self._session.post(url, json=body, params=params, headers=headers) as response:
+                async with self._session.post(
+                    url, json=body, params=params, headers=headers
+                ) as response:
                     return await self._handle_response(response, query, start_time)
             elif method == "PUT":
-                async with self._session.put(url, json=body, params=params, headers=headers) as response:
+                async with self._session.put(
+                    url, json=body, params=params, headers=headers
+                ) as response:
                     return await self._handle_response(response, query, start_time)
             elif method == "PATCH":
-                async with self._session.patch(url, json=body, params=params, headers=headers) as response:
+                async with self._session.patch(
+                    url, json=body, params=params, headers=headers
+                ) as response:
                     return await self._handle_response(response, query, start_time)
             elif method == "DELETE":
                 async with self._session.delete(url, params=params, headers=headers) as response:
@@ -120,7 +127,9 @@ class RESTAPIConnector(BaseConnector):
                 # Check if there's a nested data key
                 data_key = query.metadata.get("data_key", None)
                 if data_key and data_key in data:
-                    result_data = data[data_key] if isinstance(data[data_key], list) else [data[data_key]]
+                    result_data = (
+                        data[data_key] if isinstance(data[data_key], list) else [data[data_key]]
+                    )
                 else:
                     result_data = [data]
             else:
@@ -132,7 +141,7 @@ class RESTAPIConnector(BaseConnector):
 
             # Apply limit
             if query.limit:
-                result_data = result_data[:query.limit]
+                result_data = result_data[: query.limit]
 
             return QueryResult(
                 data=result_data,

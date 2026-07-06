@@ -26,7 +26,9 @@ class TaskPlanner(ABC):
         pass
 
     @abstractmethod
-    async def replan(self, plan: TaskPlan, last_result: Optional[Dict[str, Any]] = None) -> TaskPlan:
+    async def replan(
+        self, plan: TaskPlan, last_result: Optional[Dict[str, Any]] = None
+    ) -> TaskPlan:
         """
         Replan based on execution results.
 
@@ -98,7 +100,9 @@ class SimpleTaskPlanner(TaskPlanner):
 
         return TaskPlan(goal=goal, tasks=tasks, metadata=context or {})
 
-    async def replan(self, plan: TaskPlan, last_result: Optional[Dict[str, Any]] = None) -> TaskPlan:
+    async def replan(
+        self, plan: TaskPlan, last_result: Optional[Dict[str, Any]] = None
+    ) -> TaskPlan:
         """
         Replan based on results.
 
@@ -174,7 +178,9 @@ class CompositeTaskPlanner(TaskPlanner):
             metadata=context or {},
         )
 
-    async def replan(self, plan: TaskPlan, last_result: Optional[Dict[str, Any]] = None) -> TaskPlan:
+    async def replan(
+        self, plan: TaskPlan, last_result: Optional[Dict[str, Any]] = None
+    ) -> TaskPlan:
         """
         Replan using the first planner.
 

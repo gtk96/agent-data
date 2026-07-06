@@ -79,7 +79,7 @@ class FileConnector(BaseConnector):
 
         # Apply limit
         if query.limit:
-            files = files[:query.limit]
+            files = files[: query.limit]
 
         return QueryResult(
             data=files,
@@ -120,7 +120,7 @@ class FileConnector(BaseConnector):
 
         # Apply limit
         if query.limit:
-            results = results[:query.limit]
+            results = results[: query.limit]
 
         return QueryResult(
             data=results,
@@ -138,9 +138,26 @@ class FileConnector(BaseConnector):
     def _is_text_file(self, path: Path) -> bool:
         """Check if file is a text file."""
         text_extensions = {
-            ".txt", ".md", ".py", ".js", ".ts", ".json", ".yaml", ".yml",
-            ".xml", ".html", ".css", ".sql", ".sh", ".bash", ".csv",
-            ".log", ".ini", ".cfg", ".conf", ".toml",
+            ".txt",
+            ".md",
+            ".py",
+            ".js",
+            ".ts",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".xml",
+            ".html",
+            ".css",
+            ".sql",
+            ".sh",
+            ".bash",
+            ".csv",
+            ".log",
+            ".ini",
+            ".cfg",
+            ".conf",
+            ".toml",
         }
         return path.suffix.lower() in text_extensions
 

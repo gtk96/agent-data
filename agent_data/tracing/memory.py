@@ -48,8 +48,7 @@ class MemoryTracer(BaseTracer):
     def get_all_traces(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get all traces as dictionaries (for debugging)."""
         return {
-            trace_id: [span.to_dict() for span in spans]
-            for trace_id, spans in self._traces.items()
+            trace_id: [span.to_dict() for span in spans] for trace_id, spans in self._traces.items()
         }
 
     def clear(self) -> None:
@@ -61,10 +60,7 @@ class MemoryTracer(BaseTracer):
         total_spans = sum(len(spans) for spans in self._traces.values())
         total_traces = len(self._traces)
         error_spans = sum(
-            1
-            for spans in self._traces.values()
-            for span in spans
-            if span.status == "error"
+            1 for spans in self._traces.values() for span in spans if span.status == "error"
         )
         return {
             "total_traces": total_traces,

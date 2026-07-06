@@ -54,8 +54,16 @@ class DataQueryTool(MCPTool):
             description=f"Query data from {source_name}",
             source_name=source_name,
             input_schema=[
-                MCPToolInput(name="query", type="string", description="SQL query or natural language"),
-                MCPToolInput(name="limit", type="integer", description="Result limit", required=False, default=10),
+                MCPToolInput(
+                    name="query", type="string", description="SQL query or natural language"
+                ),
+                MCPToolInput(
+                    name="limit",
+                    type="integer",
+                    description="Result limit",
+                    required=False,
+                    default=10,
+                ),
             ],
             **kwargs,
         )

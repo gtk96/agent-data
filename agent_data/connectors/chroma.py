@@ -37,8 +37,7 @@ class ChromaConnector(BaseConnector):
                 self._client = chromadb.Client()
 
             self._collection = self._client.get_or_create_collection(
-                name=self._collection_name,
-                metadata={"hnsw:space": "cosine"}
+                name=self._collection_name, metadata={"hnsw:space": "cosine"}
             )
             self._connected = True
         except ImportError:
@@ -84,6 +83,9 @@ class ChromaConnector(BaseConnector):
 
     async def _similarity_search(self, query: Query) -> QueryResult:
         """Perform similarity search."""
+        import time
+
+        start_time = time.time()
         query_text = query.query or ""
         query_embedding = query.metadata.get("embedding", None)
         n_results = query.limit or 10
@@ -97,7 +99,7 @@ class ChromaConnector(BaseConnector):
                 query_embeddings=[query_embedding],
                 n_results=n_results,
                 where=where_filter,
-                include=["documents", "metadatas", "distances"]
+                include=["documents", "metadatas", "distances"],
             )
         elif query_text:
             # Search by text
@@ -105,7 +107,7 @@ class ChromaConnector(BaseConnector):
                 query_texts=[query_text],
                 n_results=n_results,
                 where=where_filter,
-                include=["documents", "metadatas", "distances"]
+                include=["documents", "metadatas", "distances"],
             )
         else:
             return QueryResult(
@@ -149,6 +151,7 @@ class ChromaConnector(BaseConnector):
         # Generate IDs if not provided
         if not ids:
             import uuid
+
             ids = [str(uuid.uuid4()) for _ in documents]
 
         # Add to collection
@@ -195,15 +198,10 @@ class ChromaConnector(BaseConnector):
         n_results = query.limit or 100
 
         if ids:
-            results = self._collection.get(
-                ids=ids,
-                include=["documents", "metadatas"]
-            )
+            results = self._collection.get(ids=ids, include=["documents", "metadatas"])
         else:
             results = self._collection.get(
-                where=where_filter,
-                limit=n_results,
-                include=["documents", "metadatas"]
+                where=where_filter, limit=n_results, include=["documents", "metadatas"]
             )
 
         # Format results

@@ -154,11 +154,13 @@ class LoopRunner:
                 state = await loop.step(state)
                 step_duration = (time.time() - step_start) * 1000
 
-                history.append({
-                    "iteration": i,
-                    "duration_ms": step_duration,
-                    "state_keys": list(state.keys()),
-                })
+                history.append(
+                    {
+                        "iteration": i,
+                        "duration_ms": step_duration,
+                        "state_keys": list(state.keys()),
+                    }
+                )
 
                 # Check completion
                 if loop.is_complete(state):

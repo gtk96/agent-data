@@ -28,6 +28,7 @@ class PostgreSQLConnector(BaseConnector):
         """Establish connection pool to PostgreSQL."""
         try:
             import asyncpg
+
             self._pool = await asyncpg.create_pool(
                 self._connection_string,
                 min_size=5,
@@ -121,7 +122,7 @@ class PostgreSQLConnector(BaseConnector):
             # Convert any non-serializable types
             for row in data:
                 for key, value in row.items():
-                    if hasattr(value, 'isoformat'):
+                    if hasattr(value, "isoformat"):
                         row[key] = value.isoformat()
 
         return QueryResult(
@@ -327,7 +328,9 @@ class PostgreSQLConnector(BaseConnector):
         # This is a placeholder - actual implementation would query information_schema
         return {
             "type": "postgresql",
-            "connection": self._connection_string.split("@")[-1] if "@" in self._connection_string else "localhost",
+            "connection": self._connection_string.split("@")[-1]
+            if "@" in self._connection_string
+            else "localhost",
         }
 
     async def get_tables(self) -> List[str]:

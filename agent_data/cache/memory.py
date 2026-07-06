@@ -79,17 +79,13 @@ class MemoryCache(BaseCache):
     async def _evict(self) -> None:
         """Evict expired entries first, then oldest entries."""
         # Remove expired entries
-        expired_keys = [
-            k for k, v in self._cache.items() if v.is_expired
-        ]
+        expired_keys = [k for k, v in self._cache.items() if v.is_expired]
         for key in expired_keys:
             del self._cache[key]
 
         # If still over limit, remove oldest entries
         if len(self._cache) >= self._max_size:
-            sorted_entries = sorted(
-                self._cache.items(), key=lambda x: x[1].created_at
-            )
+            sorted_entries = sorted(self._cache.items(), key=lambda x: x[1].created_at)
             to_remove = len(self._cache) - self._max_size + 1
             for key, _ in sorted_entries[:to_remove]:
                 del self._cache[key]

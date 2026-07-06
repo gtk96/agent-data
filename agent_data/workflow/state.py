@@ -31,11 +31,13 @@ class WorkflowState(BaseModel):
 
     def add_history(self, step_name: str, result: Dict[str, Any]) -> None:
         """Add entry to execution history."""
-        self.history.append({
-            "step": step_name,
-            "result": result,
-            "timestamp": datetime.now().isoformat(),
-        })
+        self.history.append(
+            {
+                "step": step_name,
+                "result": result,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         self.updated_at = datetime.now()
 
     def next_step(self) -> bool:

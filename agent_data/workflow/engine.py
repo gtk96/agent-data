@@ -48,11 +48,14 @@ class WorkflowEngine:
             results.append(result)
 
             # Update state
-            state.add_history(step.name, {
-                "status": result.status.value,
-                "output": result.output,
-                "error": result.error,
-            })
+            state.add_history(
+                step.name,
+                {
+                    "status": result.status.value,
+                    "output": result.output,
+                    "error": result.error,
+                },
+            )
 
             # Update data with step output
             if result.status == StepStatus.COMPLETED and result.output:
@@ -101,7 +104,6 @@ class WorkflowEngine:
 
         return {
             "results": [
-                r.dict() if isinstance(r, StepResult) else {"error": str(r)}
-                for r in results
+                r.dict() if isinstance(r, StepResult) else {"error": str(r)} for r in results
             ]
         }

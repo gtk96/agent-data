@@ -43,11 +43,15 @@ class Task(BaseModel):
     priority: int = Field(0, description="Task priority (higher = more important)")
 
     # Dependencies
-    dependencies: List[str] = Field(default_factory=list, description="Task IDs this task depends on")
+    dependencies: List[str] = Field(
+        default_factory=list, description="Task IDs this task depends on"
+    )
 
     # Execution context
     input_data: Dict[str, Any] = Field(default_factory=dict, description="Input data for the task")
-    output_data: Dict[str, Any] = Field(default_factory=dict, description="Output data from the task")
+    output_data: Dict[str, Any] = Field(
+        default_factory=dict, description="Output data from the task"
+    )
 
     # Execution control
     max_retries: int = Field(3, description="Maximum retry count")

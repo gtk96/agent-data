@@ -72,18 +72,18 @@ def test_sql_query():
     async def _test():
         # Setup
         connector = await client._get_connector("users")
-        connector._connection.execute("""
+        connector._connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
                 name TEXT
             )
-        """)
+        """
+        )
         connector._connection.execute("INSERT INTO users (name) VALUES (?)", ("Alice",))
 
         # Query
-        result = await client.query(
-            Query(source="users", query_type=QueryType.SELECT)
-        )
+        result = await client.query(Query(source="users", query_type=QueryType.SELECT))
 
         assert result.error is None
         assert len(result.data) == 1
@@ -107,15 +107,21 @@ def test_query_with_filters():
 
     async def _test():
         connector = await client._get_connector("users")
-        connector._connection.execute("""
+        connector._connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
                 name TEXT,
                 status TEXT
             )
-        """)
-        connector._connection.execute("INSERT INTO users (name, status) VALUES (?, ?)", ("Alice", "active"))
-        connector._connection.execute("INSERT INTO users (name, status) VALUES (?, ?)", ("Bob", "inactive"))
+        """
+        )
+        connector._connection.execute(
+            "INSERT INTO users (name, status) VALUES (?, ?)", ("Alice", "active")
+        )
+        connector._connection.execute(
+            "INSERT INTO users (name, status) VALUES (?, ?)", ("Bob", "inactive")
+        )
 
         # Query with filter
         result = await client.query(
@@ -148,23 +154,21 @@ def test_cache():
 
     async def _test():
         connector = await client._get_connector("users")
-        connector._connection.execute("""
+        connector._connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
                 name TEXT
             )
-        """)
+        """
+        )
         connector._connection.execute("INSERT INTO users (name) VALUES (?)", ("Alice",))
 
         # First query
-        result1 = await client.query(
-            Query(source="users", query_type=QueryType.SELECT)
-        )
+        result1 = await client.query(Query(source="users", query_type=QueryType.SELECT))
 
         # Second query (should be cached)
-        result2 = await client.query(
-            Query(source="users", query_type=QueryType.SELECT)
-        )
+        result2 = await client.query(Query(source="users", query_type=QueryType.SELECT))
 
         assert result1.cached is False
         assert result2.cached is True
@@ -216,12 +220,14 @@ def test_context():
         )
 
         connector = await client._get_connector("users")
-        connector._connection.execute("""
+        connector._connection.execute(
+            """
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY,
                 name TEXT
             )
-        """)
+        """
+        )
         connector._connection.execute("INSERT INTO users (name) VALUES (?)", ("Alice",))
 
         result = await client.query(
@@ -237,4 +243,5 @@ def test_context():
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__, "-v"])
