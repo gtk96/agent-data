@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from agent_data.cache.base import BaseCache
 from agent_data.cache.memory import MemoryCache
-from agent_data.core.connector import BaseConnector, get_connector
+from agent_data.core.connector import BaseConnector, get_connector, list_connectors
 from agent_data.core.models import (
     AgentContext,
     DataSource,
@@ -65,6 +65,10 @@ class AgentDataClient:
         """
         self._data_sources: Dict[str, DataSource] = {}
         self._connectors: Dict[str, BaseConnector] = {}
+        self._connector_locks: Dict[str, asyncio.Lock] = {}
+        # Top-level lock that protects _connector_locks itself; prevents two
+        # concurrent first-time accesses from creating duplicate per-source locks.
+        self._init_lock = asyncio.Lock()
         self._cache_enabled = cache_enabled
         self._cache_ttl = cache_ttl
         self._trace_enabled = trace_enabled
@@ -95,26 +99,58 @@ class AgentDataClient:
         self._connectors.pop(name, None)
 
     async def _get_connector(self, source_name: str) -> BaseConnector:
-        """Get or create a connector for a data source."""
+        """Get or create a connector for a data source.
+
+        Two layers of locking:
+        1. A top-level lock ensures only one per-source lock is created.
+        2. Each source has its own lock so that concurrent first-time
+           accesses for different sources don't serialize, while
+           concurrent first-time accesses for the SAME source do — so we
+           don't accidentally build two connectors (or two connection
+           pools) for the same source.
+        """
         if source_name in self._connectors:
             return self._connectors[source_name]
 
-        if source_name not in self._data_sources:
-            raise ValueError(f"Data source '{source_name}' not found")
+        async with self._init_lock:
+            if source_name in self._connectors:
+                return self._connectors[source_name]
+            if source_name not in self._data_sources:
+                raise ValueError(f"Data source '{source_name}' not found")
+            if source_name not in self._connector_locks:
+                self._connector_locks[source_name] = asyncio.Lock()
 
-        data_source = self._data_sources[source_name]
-        connector_class = get_connector(data_source.type)
+        source_lock = self._connector_locks[source_name]
+        async with source_lock:
+            # Re-check after acquiring the per-source lock.
+            if source_name in self._connectors:
+                return self._connectors[source_name]
 
-        if connector_class is None:
-            raise ValueError(
-                f"No connector registered for type '{data_source.type}'. "
-                f"Available connectors: {list(get_connector.__module__)}"
-            )
+            if source_name not in self._data_sources:
+                raise ValueError(f"Data source '{source_name}' not found")
 
-        connector = connector_class(data_source.config)
-        await connector.connect()
-        self._connectors[source_name] = connector
-        return connector
+            data_source = self._data_sources[source_name]
+            connector_class = get_connector(data_source.type)
+
+            if connector_class is None:
+                raise ValueError(
+                    f"No connector registered for type '{data_source.type}'. "
+                    f"Available: {list_connectors()}"
+                )
+
+            connector = connector_class(data_source.config)
+            try:
+                await connector.connect()
+            except Exception:
+                # Clean up the half-built connector so callers don't see a
+                # `_connected=False` instance pinned in the cache.
+                try:
+                    await connector.disconnect()
+                except Exception:
+                    pass
+                raise
+            self._connectors[source_name] = connector
+            return connector
 
     def _generate_cache_key(self, query: Query, context: Optional[AgentContext] = None) -> str:
         """Generate a cache key for a query."""
@@ -173,6 +209,12 @@ class AgentDataClient:
             # Convert string query to Query object if needed
             if isinstance(query, str):
                 query = await self._parse_natural_language(query, context)
+
+            # Bind the new top-level span's trace id to the contextvar so any
+            # nested spans opened by downstream layers inherit it.
+            from agent_data.tracing.memory import set_active_trace_id
+
+            trace_token = set_active_trace_id(span.trace_id) if span else None
 
             # Check cache
             cache_key = None
@@ -235,6 +277,12 @@ class AgentDataClient:
                 error=error_msg,
                 query_time_ms=(time.time() - start_time) * 1000,
             )
+        finally:
+            # Reset the active trace id so it doesn't leak across queries.
+            if trace_token is not None:
+                from agent_data.tracing.memory import _active_trace_id
+
+                _active_trace_id.reset(trace_token)
 
     async def batch_query(
         self,

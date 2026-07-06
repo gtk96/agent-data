@@ -3,7 +3,6 @@ SQL database connector.
 """
 
 import asyncio
-import re
 import sqlite3
 import time
 from typing import Any, Dict, List, Optional
@@ -16,14 +15,7 @@ from agent_data.core.models import (
     QueryResult,
     QueryType,
 )
-
-
-def _validate_identifier(name: str) -> str:
-    """Validate and sanitize SQL identifier to prevent injection."""
-    # Only allow alphanumeric characters and underscores
-    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
-        raise ValueError(f"Invalid identifier: {name}")
-    return name
+from agent_data.core.sql_utils import escape_like, validate_identifier
 
 
 class SQLConnector(BaseConnector):
@@ -90,13 +82,13 @@ class SQLConnector(BaseConnector):
 
         # Fields
         if query.fields:
-            validated_fields = [_validate_identifier(f) for f in query.fields]
+            validated_fields = [validate_identifier(f) for f in query.fields]
             sql_parts.append(", ".join(validated_fields))
         else:
             sql_parts.append("*")
 
         # FROM
-        sql_parts.append(f"FROM {_validate_identifier(query.source)}")
+        sql_parts.append(f"FROM {validate_identifier(query.source)}")
 
         # WHERE
         where_clause, params = self._build_where_clause(query.filters)
@@ -106,7 +98,7 @@ class SQLConnector(BaseConnector):
         # ORDER BY
         if query.order_by:
             order = "DESC" if query.order_desc else "ASC"
-            sql_parts.append(f"ORDER BY {_validate_identifier(query.order_by)} {order}")
+            sql_parts.append(f"ORDER BY {validate_identifier(query.order_by)} {order}")
 
         # LIMIT
         if query.limit:
@@ -139,15 +131,15 @@ class SQLConnector(BaseConnector):
         search_text = query.query or ""
 
         # Build a simple LIKE query
-        sql = f"SELECT * FROM {_validate_identifier(query.source)}"
+        sql = f"SELECT * FROM {validate_identifier(query.source)}"
         params = []
 
         if search_text:
-            # Search in all text columns
-            like_clause = f"%{search_text}%"
+            # Search in all text columns; escape LIKE wildcards to keep semantics
+            like_clause = f"%{escape_like(search_text)}%"
             where_parts = []
             for col in self._get_text_columns(query.source):
-                where_parts.append(f"{_validate_identifier(col)} LIKE ?")
+                where_parts.append(f"{validate_identifier(col)} LIKE ? ESCAPE '\\'")
                 params.append(like_clause)
             if where_parts:
                 sql += f" WHERE {' OR '.join(where_parts)}"
@@ -179,12 +171,10 @@ class SQLConnector(BaseConnector):
                 error="No data provided for INSERT",
             )
 
-        validated_columns = [_validate_identifier(k) for k in data.keys()]
+        validated_columns = [validate_identifier(k) for k in data.keys()]
         columns = ", ".join(validated_columns)
         placeholders = ", ".join(["?"] * len(data))
-        sql = (
-            f"INSERT INTO {_validate_identifier(query.source)} ({columns}) VALUES ({placeholders})"
-        )
+        sql = f"INSERT INTO {validate_identifier(query.source)} ({columns}) VALUES ({placeholders})"
 
         cursor = self._connection.execute(sql, list(data.values()))
         self._connection.commit()
@@ -204,10 +194,10 @@ class SQLConnector(BaseConnector):
                 error="No data provided for UPDATE",
             )
 
-        set_parts = [f"{_validate_identifier(k)} = ?" for k in data.keys()]
+        set_parts = [f"{validate_identifier(k)} = ?" for k in data.keys()]
         where_clause, params = self._build_where_clause(query.filters)
 
-        sql = f"UPDATE {_validate_identifier(query.source)} SET {', '.join(set_parts)}"
+        sql = f"UPDATE {validate_identifier(query.source)} SET {', '.join(set_parts)}"
         if where_clause:
             sql += f" WHERE {where_clause}"
             params = list(data.values()) + params
@@ -227,7 +217,7 @@ class SQLConnector(BaseConnector):
         """Execute a DELETE query synchronously."""
         where_clause, params = self._build_where_clause(query.filters)
 
-        sql = f"DELETE FROM {_validate_identifier(query.source)}"
+        sql = f"DELETE FROM {validate_identifier(query.source)}"
         if where_clause:
             sql += f" WHERE {where_clause}"
 
@@ -249,7 +239,7 @@ class SQLConnector(BaseConnector):
         params = []
 
         for f in filters:
-            validated_field = _validate_identifier(f.field)
+            validated_field = validate_identifier(f.field)
             if f.operator == "eq":
                 conditions.append(f"{validated_field} = ?")
                 params.append(f.value)
@@ -273,11 +263,11 @@ class SQLConnector(BaseConnector):
                 conditions.append(f"{validated_field} IN ({placeholders})")
                 params.extend(f.value)
             elif f.operator == "like":
-                conditions.append(f"{validated_field} LIKE ?")
+                conditions.append(f"{validated_field} LIKE ? ESCAPE '\\'")
                 params.append(f.value)
             elif f.operator == "contains":
-                conditions.append(f"{validated_field} LIKE ?")
-                params.append(f"%{f.value}%")
+                conditions.append(f"{validated_field} LIKE ? ESCAPE '\\'")
+                params.append(f"%{escape_like(f.value)}%")
             else:
                 raise ValueError(f"Unsupported operator: {f.operator}")
 
@@ -285,7 +275,8 @@ class SQLConnector(BaseConnector):
 
     def _get_text_columns(self, table_name: str) -> List[str]:
         """Get text columns from a table."""
-        cursor = self._connection.execute(f"PRAGMA table_info({table_name})")
+        safe_name = validate_identifier(table_name)
+        cursor = self._connection.execute(f"PRAGMA table_info({safe_name})")
         columns = cursor.fetchall()
         return [
             col[1] for col in columns if col[2].upper() in ("TEXT", "VARCHAR", "CHAR", "STRING")
@@ -307,7 +298,8 @@ class SQLConnector(BaseConnector):
 
         schema = {}
         for table in tables:
-            cursor = self._connection.execute(f"PRAGMA table_info({table})")
+            safe_table = validate_identifier(table)
+            cursor = self._connection.execute(f"PRAGMA table_info({safe_table})")
             columns = cursor.fetchall()
             schema[table] = {
                 "columns": [

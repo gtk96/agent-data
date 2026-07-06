@@ -2,6 +2,7 @@
 In-memory vector store connector for development and testing.
 """
 
+import asyncio
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -25,6 +26,9 @@ class InMemoryVectorConnector(BaseConnector):
         super().__init__(config)
         self._vectors: Dict[str, Dict[str, Any]] = {}
         self._dimension: int = config.metadata.get("dimension", 128)
+        # Shared mutable state requires a lock — reads and writes can race
+        # under concurrent asyncio.gather / batch_query.
+        self._lock = asyncio.Lock()
 
     async def connect(self) -> None:
         """Initialize vector store."""
@@ -32,7 +36,8 @@ class InMemoryVectorConnector(BaseConnector):
 
     async def disconnect(self) -> None:
         """Clear vector store."""
-        self._vectors.clear()
+        async with self._lock:
+            self._vectors.clear()
         self._connected = False
 
     async def execute(self, query: Query) -> QueryResult:
@@ -69,9 +74,14 @@ class InMemoryVectorConnector(BaseConnector):
 
         query_vector = np.array(query_vector)
 
+        # Snapshot vectors under the lock, then do math outside it to keep the
+        # critical section short.
+        async with self._lock:
+            snapshot = list(self._vectors.items())
+
         # Calculate similarities
         scores = []
-        for doc_id, doc_data in self._vectors.items():
+        for doc_id, doc_data in snapshot:
             doc_vector = np.array(doc_data["vector"])
             similarity = self._cosine_similarity(query_vector, doc_vector)
 
@@ -119,14 +129,15 @@ class InMemoryVectorConnector(BaseConnector):
                 ]
 
         inserted_ids = []
-        for item in vectors_data:
-            doc_id = item.get("id", str(uuid.uuid4()))
-            self._vectors[doc_id] = {
-                "vector": item["vector"],
-                "text": item.get("text", ""),
-                "metadata": item.get("metadata", {}),
-            }
-            inserted_ids.append(doc_id)
+        async with self._lock:
+            for item in vectors_data:
+                doc_id = item.get("id", str(uuid.uuid4()))
+                self._vectors[doc_id] = {
+                    "vector": item["vector"],
+                    "text": item.get("text", ""),
+                    "metadata": item.get("metadata", {}),
+                }
+                inserted_ids.append(doc_id)
 
         return QueryResult(
             data=[{"id": doc_id} for doc_id in inserted_ids],
@@ -139,10 +150,11 @@ class InMemoryVectorConnector(BaseConnector):
         ids_to_delete = query.metadata.get("ids", [])
 
         deleted_count = 0
-        for doc_id in ids_to_delete:
-            if doc_id in self._vectors:
-                del self._vectors[doc_id]
-                deleted_count += 1
+        async with self._lock:
+            for doc_id in ids_to_delete:
+                if doc_id in self._vectors:
+                    del self._vectors[doc_id]
+                    deleted_count += 1
 
         return QueryResult(
             data=[{"deleted_count": deleted_count}],
@@ -207,7 +219,12 @@ class InMemoryVectorConnector(BaseConnector):
         metadata: Optional[Dict[str, Any]] = None,
         doc_id: Optional[str] = None,
     ) -> str:
-        """Add a document to the vector store (convenience method)."""
+        """Add a document to the vector store (convenience method, sync).
+
+        Note: this method does not acquire self._lock because it is synchronous
+        and intended for single-threaded setup. Concurrent async writers must
+        use execute(Query(..., query_type=QueryType.INSERT)).
+        """
         doc_id = doc_id or str(uuid.uuid4())
         self._vectors[doc_id] = {
             "vector": vector,
@@ -217,5 +234,5 @@ class InMemoryVectorConnector(BaseConnector):
         return doc_id
 
     def get_document(self, doc_id: str) -> Optional[Dict[str, Any]]:
-        """Get a document by ID."""
+        """Get a document by ID (sync, single-threaded use)."""
         return self._vectors.get(doc_id)

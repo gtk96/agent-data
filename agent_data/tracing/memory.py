@@ -3,10 +3,27 @@ In-memory tracer implementation for development and testing.
 """
 
 import asyncio
+import contextvars
 from collections import defaultdict
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from agent_data.tracing.base import BaseTracer, TraceSpan
+
+# Context-local trace id. Spans opened while a trace is active inherit it.
+_active_trace_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "agent_data_active_trace_id", default=None
+)
+
+
+def get_active_trace_id() -> Optional[str]:
+    """Return the currently active trace id, if any."""
+    return _active_trace_id.get()
+
+
+def set_active_trace_id(trace_id: Optional[str]) -> contextvars.Token:
+    """Set the currently active trace id; returns the reset token."""
+    return _active_trace_id.set(trace_id)
 
 
 class MemoryTracer(BaseTracer):
@@ -22,11 +39,15 @@ class MemoryTracer(BaseTracer):
         parent_id: Optional[str] = None,
         attributes: Optional[Dict[str, Any]] = None,
     ) -> TraceSpan:
-        """Start a new trace span."""
+        """Start a new trace span, inheriting the active trace id when present."""
+        # Inherit the current trace id so spans inside one logical operation
+        # can be aggregated. Falls back to a new trace id when none is active.
+        active_id = _active_trace_id.get()
         span = TraceSpan(
             name=name,
             parent_id=parent_id,
             attributes=attributes or {},
+            trace_id=active_id or str(uuid4()),
         )
         async with self._lock:
             self._traces[span.trace_id].append(span)

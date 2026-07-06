@@ -45,13 +45,13 @@ class MCPServer:
 
         for source_name in client.data_sources:
 
-            async def query_handler(input_data: Dict[str, Any]) -> Any:
+            async def query_handler(input_data: Dict[str, Any], _src: str = source_name) -> Any:
                 query_text = input_data.get("query", "")
                 limit = input_data.get("limit", 10)
 
                 result = await client.query(
                     Query(
-                        source=source_name,
+                        source=_src,
                         query_type=QueryType.SEARCH,
                         query=query_text,
                         limit=limit,

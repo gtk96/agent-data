@@ -148,10 +148,26 @@ class LoopRunner:
                         duration_ms=(time.time() - start_time) * 1000,
                     )
 
-            # Execute step
+            # Execute step — wrap with asyncio.wait_for when a timeout is set,
+            # so a slow step doesn't slip past the next iteration's timeout check.
             try:
                 step_start = time.time()
-                state = await loop.step(state)
+                remaining = None
+                if self._timeout_seconds:
+                    remaining = max(0.0, self._timeout_seconds - (time.time() - start_time))
+                    if remaining <= 0:
+                        return AgentResult(
+                            loop_id=loop_id,
+                            status=LoopStatus.TIMEOUT,
+                            iterations=i,
+                            history=history,
+                            error=f"Timed out after {self._timeout_seconds}s",
+                            duration_ms=(time.time() - start_time) * 1000,
+                        )
+                if remaining is not None:
+                    state = await asyncio.wait_for(loop.step(state), timeout=remaining)
+                else:
+                    state = await loop.step(state)
                 step_duration = (time.time() - step_start) * 1000
 
                 history.append(
@@ -173,6 +189,15 @@ class LoopRunner:
                         duration_ms=(time.time() - start_time) * 1000,
                     )
 
+            except asyncio.TimeoutError:
+                return AgentResult(
+                    loop_id=loop_id,
+                    status=LoopStatus.TIMEOUT,
+                    iterations=i,
+                    history=history,
+                    error=f"Step exceeded timeout budget at iteration {i}",
+                    duration_ms=(time.time() - start_time) * 1000,
+                )
             except Exception as e:
                 return AgentResult(
                     loop_id=loop_id,
