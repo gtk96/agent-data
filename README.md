@@ -1,0 +1,218 @@
+# Agent Data Orchestration Framework
+
+A unified data access layer for AI Agent applications.
+
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- **Multi-source Data Access**: Connect to SQL, NoSQL, Vector stores, APIs, and files through a unified interface
+- **Context-aware Caching**: Automatic caching with TTL support, optimized for Agent workloads
+- **Distributed Tracing**: Built-in observability with OpenTelemetry-compatible tracing
+- **Type-safe Queries**: Pydantic-based data models for type safety and validation
+- **Async-first**: Full async/await support for high-concurrency scenarios
+- **Agent-optimized**: Designed specifically for AI Agent applications
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install agent-data
+
+# With optional dependencies
+pip install agent-data[postgresql]  # PostgreSQL support
+pip install agent-data[chroma]      # Chroma vector store
+pip install agent-data[api]         # REST API support
+pip install agent-data[tracing]     # OpenTelemetry tracing
+```
+
+### Basic Usage
+
+```python
+import asyncio
+from agent_data import AgentDataClient, DataSource, DataSourceConfig, DataSourceType, Query, QueryType
+
+# Define data sources
+data_sources = [
+    DataSource(
+        config=DataSourceConfig(
+            name="users",
+            type=DataSourceType.SQL,
+            connection=":memory:",
+        ),
+        description="User database",
+    )
+]
+
+# Create client
+client = AgentDataClient(data_sources=data_sources)
+
+async def main():
+    # Connect to data sources
+    connector = await client._get_connector("users")
+    connector._connection.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+    connector._connection.execute("INSERT INTO users (name) VALUES ('Alice')")
+
+    # Execute query
+    result = await client.query(
+        Query(source="users", query_type=QueryType.SELECT)
+    )
+    print(result.data)  # [{'id': 1, 'name': 'Alice'}]
+
+asyncio.run(main())
+```
+
+## Supported Data Sources
+
+| Type | Connector | Package | Status |
+|------|-----------|---------|--------|
+| SQL | SQLite | built-in | ✅ Ready |
+| SQL | PostgreSQL | asyncpg | ✅ Ready |
+| Vector | InMemory | numpy | ✅ Ready |
+| Vector | Chroma | chromadb | ✅ Ready |
+| API | REST | aiohttp | ✅ Ready |
+| File | Local files | built-in | ✅ Ready |
+
+## Features
+
+### 1. Multi-source Data Access
+
+```python
+from agent_data import AgentDataClient, DataSource, DataSourceConfig, DataSourceType
+
+data_sources = [
+    DataSource(
+        config=DataSourceConfig(
+            name="users",
+            type=DataSourceType.SQL,
+            connection="postgresql://user:pass@localhost/mydb",
+        ),
+    ),
+    DataSource(
+        config=DataSourceConfig(
+            name="documents",
+            type=DataSourceType.VECTOR,
+            connection="chroma",
+            metadata={"collection": "docs"},
+        ),
+    ),
+]
+
+client = AgentDataClient(data_sources=data_sources)
+```
+
+### 2. Query with Filters
+
+```python
+from agent_data import Query, QueryFilter, QueryType
+
+result = await client.query(
+    Query(
+        source="users",
+        query_type=QueryType.SELECT,
+        filters=[
+            QueryFilter(field="status", operator="eq", value="active"),
+            QueryFilter(field="age", operator="gte", value=18),
+        ],
+        limit=10,
+        order_by="name",
+    )
+)
+```
+
+### 3. Context-aware Caching
+
+```python
+from agent_data import AgentContext
+
+context = AgentContext(
+    agent_id="customer_service",
+    session_id="session_123",
+    user_id="user_456",
+)
+
+# First query - executes and caches
+result1 = await client.query("SELECT * FROM users", context=context)
+
+# Second query - returns from cache
+result2 = await client.query("SELECT * FROM users", context=context)
+print(result2.cached)  # True
+```
+
+### 4. Distributed Tracing
+
+```python
+from agent_data.tracing import OpenTelemetryTracer
+
+tracer = OpenTelemetryTracer(
+    service_name="my-agent",
+    endpoint="http://localhost:4317",  # Jaeger/Zipkin endpoint
+)
+
+client = AgentDataClient(
+    data_sources=data_sources,
+    tracer=tracer,
+)
+```
+
+### 5. Batch Queries
+
+```python
+results = await client.batch_query(
+    queries=[
+        "SELECT * FROM users",
+        "SELECT * FROM orders",
+    ],
+    parallel=True,
+)
+
+for result in results:
+    print(f"{result.source}: {len(result.data)} rows")
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│              AgentDataClient                     │
+├─────────────────────────────────────────────────┤
+│   Cache    │   Tracer   │   Connector Registry  │
+├─────────────────────────────────────────────────┤
+│   SQL     │  Vector    │  REST API  │   File    │
+└─────────────────────────────────────────────────┘
+```
+
+## Development
+
+```bash
+# Clone repository
+git clone https://github.com/your-org/agent-data.git
+cd agent-data
+
+# Install in development mode
+pip install -e ".[dev]"
+
+# Run tests
+pytest tests/
+
+# Run examples
+python examples/basic_usage.py
+python examples/advanced_usage.py
+```
+
+## Documentation
+
+- [API Reference](docs/api.md)
+- [Connectors Guide](docs/connectors.md)
+- [Examples](examples/)
+- [Contributing](CONTRIBUTING.md)
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
