@@ -1,218 +1,233 @@
 # Agent Data Orchestration Framework
 
-A unified data access layer for AI Agent applications.
+为 AI Agent 应用提供统一的数据访问和任务编排能力。
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-23%20passed-brightgreen)]()
 
-## Features
+## 核心功能
 
-- **Multi-source Data Access**: Connect to SQL, NoSQL, Vector stores, APIs, and files through a unified interface
-- **Context-aware Caching**: Automatic caching with TTL support, optimized for Agent workloads
-- **Distributed Tracing**: Built-in observability with OpenTelemetry-compatible tracing
-- **Type-safe Queries**: Pydantic-based data models for type safety and validation
-- **Async-first**: Full async/await support for high-concurrency scenarios
-- **Agent-optimized**: Designed specifically for AI Agent applications
+| 功能 | 说明 |
+|------|------|
+| 统一数据访问 | SQL、向量库、API、文件，一个接口搞定 |
+| 任务规划引擎 | 自动拆分任务、选择执行路径 |
+| 工作流引擎 | 多步骤任务编排，状态管理 |
+| Agent Loop | 循环执行、错误重试、终止控制 |
+| 多 Agent 协作 | Agent 间通信、任务分发 |
+| MCP 协议 | Model Context Protocol 支持 |
+| 可观测性 | OpenTelemetry 分布式追踪 |
 
-## Quick Start
+## 快速开始
 
-### Installation
+### 安装
 
 ```bash
+# 基础安装
 pip install agent-data
 
-# With optional dependencies
-pip install agent-data[postgresql]  # PostgreSQL support
-pip install agent-data[chroma]      # Chroma vector store
-pip install agent-data[api]         # REST API support
-pip install agent-data[tracing]     # OpenTelemetry tracing
+# 带可选依赖
+pip install agent-data[all]           # 全部功能
+pip install agent-data[postgres]      # PostgreSQL
+pip install agent-data[chroma]        # Chroma 向量库
+pip install agent-data[qdrant]        # Qdrant 向量库
+pip install agent-data[api]           # REST API
+pip install agent-data[tracing]       # OpenTelemetry
 ```
 
-### Basic Usage
+### 最小示例
 
 ```python
 import asyncio
 from agent_data import AgentDataClient, DataSource, DataSourceConfig, DataSourceType, Query, QueryType
 
-# Define data sources
-data_sources = [
+# 创建客户端
+client = AgentDataClient(data_sources=[
     DataSource(
         config=DataSourceConfig(
             name="users",
             type=DataSourceType.SQL,
             connection=":memory:",
         ),
-        description="User database",
     )
-]
-
-# Create client
-client = AgentDataClient(data_sources=data_sources)
+])
 
 async def main():
-    # Connect to data sources
+    # 初始化数据库
     connector = await client._get_connector("users")
     connector._connection.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
     connector._connection.execute("INSERT INTO users (name) VALUES ('Alice')")
 
-    # Execute query
-    result = await client.query(
-        Query(source="users", query_type=QueryType.SELECT)
-    )
+    # 查询
+    result = await client.query(Query(source="users", query_type=QueryType.SELECT))
     print(result.data)  # [{'id': 1, 'name': 'Alice'}]
 
 asyncio.run(main())
 ```
 
-## Supported Data Sources
+## 支持的数据源
 
-| Type | Connector | Package | Status |
-|------|-----------|---------|--------|
-| SQL | SQLite | built-in | ✅ Ready |
-| SQL | PostgreSQL | asyncpg | ✅ Ready |
-| Vector | InMemory | numpy | ✅ Ready |
-| Vector | Chroma | chromadb | ✅ Ready |
-| API | REST | aiohttp | ✅ Ready |
-| File | Local files | built-in | ✅ Ready |
+| 类型 | 连接器 | 状态 |
+|------|--------|------|
+| SQL | SQLite | ✅ |
+| SQL | PostgreSQL | ✅ |
+| SQL | MySQL | ✅ |
+| 向量库 | Chroma | ✅ |
+| 向量库 | Qdrant | ✅ |
+| 向量库 | InMemory | ✅ |
+| API | REST | ✅ |
+| 文件 | 本地文件 | ✅ |
 
-## Features
+## 功能示例
 
-### 1. Multi-source Data Access
+### 1. 任务执行
 
 ```python
-from agent_data import AgentDataClient, DataSource, DataSourceConfig, DataSourceType
+from agent_data import Task
 
-data_sources = [
-    DataSource(
-        config=DataSourceConfig(
-            name="users",
-            type=DataSourceType.SQL,
-            connection="postgresql://user:pass@localhost/mydb",
-        ),
-    ),
-    DataSource(
-        config=DataSourceConfig(
-            name="documents",
-            type=DataSourceType.VECTOR,
-            connection="chroma",
-            metadata={"collection": "docs"},
-        ),
-    ),
+async def my_task(input_data):
+    return {"result": "success"}
+
+task = Task(name="my_task", input_data={"query": "test"})
+result = await client.execute_task(task, my_task)
+print(result.status)  # completed
+```
+
+### 2. 工作流编排
+
+```python
+from agent_data import FunctionStep
+
+async def step1(state):
+    return {"step1_done": True}
+
+async def step2(state):
+    return {"step2_done": True}
+
+workflow = [
+    FunctionStep("step1", step1),
+    FunctionStep("step2", step2),
 ]
 
-client = AgentDataClient(data_sources=data_sources)
+result = await client.execute_workflow(workflow)
 ```
 
-### 2. Query with Filters
+### 3. Agent Loop
 
 ```python
-from agent_data import Query, QueryFilter, QueryType
+from agent_data.loop.agent_loop import SimpleAgentLoop
 
-result = await client.query(
-    Query(
-        source="users",
-        query_type=QueryType.SELECT,
-        filters=[
-            QueryFilter(field="status", operator="eq", value="active"),
-            QueryFilter(field="age", operator="gte", value=18),
-        ],
-        limit=10,
-        order_by="name",
-    )
-)
+async def step(state):
+    state["count"] = state.get("count", 0) + 1
+    return state
+
+def is_complete(state):
+    return state.get("count", 0) >= 3
+
+loop = SimpleAgentLoop(step, is_complete)
+result = await client.agent_loop(loop, {"count": 0})
+print(result.iterations)  # 3
 ```
 
-### 3. Context-aware Caching
+### 4. 多 Agent 协作
 
 ```python
-from agent_data import AgentContext
+from agent_data import WorkerAgent, AgentOrchestrator
 
-context = AgentContext(
-    agent_id="customer_service",
-    session_id="session_123",
-    user_id="user_456",
-)
+async def data_agent(input_data):
+    return {"data": "fetched"}
 
-# First query - executes and caches
-result1 = await client.query("SELECT * FROM users", context=context)
+async def analysis_agent(input_data):
+    return {"analysis": "complete"}
 
-# Second query - returns from cache
-result2 = await client.query("SELECT * FROM users", context=context)
-print(result2.cached)  # True
+# 创建 Agents
+orchestrator = client.create_orchestrator()
+orchestrator.register(WorkerAgent("data", data_agent, capabilities=["fetch"]))
+orchestrator.register(WorkerAgent("analysis", analysis_agent, capabilities=["analyze"]))
+
+# 执行
+result = await orchestrator.execute_task({"action": "fetch"}, "fetch", "coordinator")
 ```
 
-### 4. Distributed Tracing
+### 5. MCP 协议
 
 ```python
-from agent_data.tracing import OpenTelemetryTracer
+from agent_data.mcp import MCPServer
 
-tracer = OpenTelemetryTracer(
-    service_name="my-agent",
-    endpoint="http://localhost:4317",  # Jaeger/Zipkin endpoint
-)
+server = MCPServer("my-server")
+server.register_data_tools(client)
 
-client = AgentDataClient(
-    data_sources=data_sources,
-    tracer=tracer,
-)
+# 处理 MCP 请求
+response = await server.handle_request({
+    "method": "tools/list",
+    "params": {}
+})
 ```
 
-### 5. Batch Queries
-
-```python
-results = await client.batch_query(
-    queries=[
-        "SELECT * FROM users",
-        "SELECT * FROM orders",
-    ],
-    parallel=True,
-)
-
-for result in results:
-    print(f"{result.source}: {len(result.data)} rows")
-```
-
-## Architecture
+## 架构
 
 ```
-┌─────────────────────────────────────────────────┐
-│              AgentDataClient                     │
-├─────────────────────────────────────────────────┤
-│   Cache    │   Tracer   │   Connector Registry  │
-├─────────────────────────────────────────────────┤
-│   SQL     │  Vector    │  REST API  │   File    │
-└─────────────────────────────────────────────────┘
+agent_data/
+├── core/           # 核心客户端和模型
+├── connectors/     # 数据源连接器
+├── cache/          # 缓存模块
+├── tracing/        # 追踪模块
+├── planning/       # 任务规划引擎
+├── workflow/       # 工作流引擎
+├── loop/           # Agent Loop
+├── multi_agent/    # 多 Agent 协作
+├── mcp/            # MCP 协议
+└── integrations/   # 框架集成
 ```
 
-## Development
+## 开发
 
 ```bash
-# Clone repository
+# 克隆仓库
 git clone https://github.com/your-org/agent-data.git
 cd agent-data
 
-# Install in development mode
+# 安装开发依赖
 pip install -e ".[dev]"
 
-# Run tests
+# 运行测试
 pytest tests/
 
-# Run examples
-python examples/basic_usage.py
-python examples/advanced_usage.py
+# 代码格式化
+black agent_data/ tests/
+
+# 运行示例
+python examples/integration_example.py
+python examples/real_world_case.py
 ```
 
-## Documentation
+## 测试
 
-- [API Reference](docs/api.md)
-- [Connectors Guide](docs/connectors.md)
-- [Examples](examples/)
-- [Contributing](CONTRIBUTING.md)
+```bash
+# 运行所有测试
+pytest tests/ -v
 
-## Contributing
+# 运行带覆盖率
+pytest tests/ --cov=agent_data
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
+# 运行特定模块
+pytest tests/test_planning.py -v
+pytest tests/test_workflow.py -v
+pytest tests/test_loop.py -v
+```
 
-## License
+## 文档
 
-MIT License - see [LICENSE](LICENSE) for details.
+- [JD 需求分析](docs/jd_analysis.md)
+- [项目路线图](docs/roadmap.md)
+- [需求文档](docs/requirements.md)
+- [代码质量报告](docs/code_quality_report.md)
+- [示例代码](examples/)
+
+## 贡献
+
+欢迎贡献！请先阅读贡献指南。
+
+## 许可证
+
+MIT License - 详见 [LICENSE](LICENSE)
