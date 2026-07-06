@@ -36,6 +36,9 @@ chroma = [
 qdrant = [
     "qdrant-client>=1.3.0",
 ]
+pinecone = [
+    "pinecone-client>=2.0.0",
+]
 api = [
     "aiohttp>=3.8.0",
 ]

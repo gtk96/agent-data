@@ -31,6 +31,7 @@ pip install agent-data[all]           # 全部功能
 pip install agent-data[postgres]      # PostgreSQL
 pip install agent-data[chroma]        # Chroma 向量库
 pip install agent-data[qdrant]        # Qdrant 向量库
+pip install agent-data[pinecone]      # Pinecone 向量库
 pip install agent-data[api]           # REST API
 pip install agent-data[tracing]       # OpenTelemetry
 ```
@@ -74,6 +75,7 @@ asyncio.run(main())
 | SQL | MySQL | ✅ |
 | 向量库 | Chroma | ✅ |
 | 向量库 | Qdrant | ✅ |
+| 向量库 | Pinecone | ✅ |
 | 向量库 | InMemory | ✅ |
 | API | REST | ✅ |
 | 文件 | 本地文件 | ✅ |
