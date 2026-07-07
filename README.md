@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-23%20passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-41%20passed-brightgreen)]()
 
 ## 核心功能
 
@@ -27,13 +27,16 @@
 pip install agent-data
 
 # 带可选依赖
-pip install agent-data[all]           # 全部功能
-pip install agent-data[postgres]      # PostgreSQL
+pip install agent-data[all]           # 全部功能(SQLite/PG/Chroma/Qdrant/REST/tracing)
+pip install agent-data[postgres]      # PostgreSQL(asyncpg)
+pip install agent-data[sqlite]        # SQLite 异步驱动(aiosqlite)
 pip install agent-data[chroma]        # Chroma 向量库
 pip install agent-data[qdrant]        # Qdrant 向量库
 pip install agent-data[pinecone]      # Pinecone 向量库
-pip install agent-data[api]           # REST API
+pip install agent-data[api]           # REST API(aiohttp)
 pip install agent-data[tracing]       # OpenTelemetry
+pip install agent-data[langchain]     # LangChain 集成
+pip install agent-data[llamaindex]    # LlamaIndex 集成
 ```
 
 ### 最小示例
@@ -70,15 +73,17 @@ asyncio.run(main())
 
 | 类型 | 连接器 | 状态 |
 |------|--------|------|
-| SQL | SQLite | ✅ |
-| SQL | PostgreSQL | ✅ |
-| SQL | MySQL | ✅ |
+| SQL | SQLite (sqlite3 / aiosqlite) | ✅ |
+| SQL | PostgreSQL (asyncpg) | ✅ |
+| SQL | MySQL | 🚧 (规划中,需 aiomysql) |
 | 向量库 | Chroma | ✅ |
 | 向量库 | Qdrant | ✅ |
 | 向量库 | Pinecone | ✅ |
 | 向量库 | InMemory | ✅ |
 | API | REST | ✅ |
 | 文件 | 本地文件 | ✅ |
+
+> MySQL、HBase、Elasticsearch 等更多连接器请参考 [docs/SUPPORTED_FEATURES.md](docs/SUPPORTED_FEATURES.md) 的规划清单。
 
 ## 功能示例
 
@@ -117,7 +122,7 @@ result = await client.execute_workflow(workflow)
 ### 3. Agent Loop
 
 ```python
-from agent_data.loop.agent_loop import SimpleAgentLoop
+from agent_data.loop import SimpleAgentLoop
 
 async def step(state):
     state["count"] = state.get("count", 0) + 1

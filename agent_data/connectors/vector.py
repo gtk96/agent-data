@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from agent_data.core.connector import BaseConnector
+from agent_data.core.errors import format_error
 from agent_data.core.models import (
     DataSourceConfig,
     Query,
@@ -17,6 +18,7 @@ from agent_data.core.models import (
     QueryResult,
     QueryType,
 )
+from agent_data.core.redact import redact
 
 
 class InMemoryVectorConnector(BaseConnector):
@@ -60,7 +62,7 @@ class InMemoryVectorConnector(BaseConnector):
         except Exception as e:
             return QueryResult(
                 source=self.name,
-                error=str(e),
+                error=redact(format_error(e)),
                 query_time_ms=(time.time() - start_time) * 1000,
             )
 

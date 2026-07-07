@@ -9,6 +9,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from agent_data.core.errors import format_error
+from agent_data.core.redact import redact
+
 
 class StepStatus(str, Enum):
     """Step execution status."""
@@ -133,7 +136,7 @@ class FunctionStep(WorkflowStep):
             return StepResult(
                 step_id=self.id,
                 status=StepStatus.FAILED,
-                error=str(e),
+                error=redact(format_error(e)),
             )
 
 
@@ -194,5 +197,5 @@ class ConditionalStep(WorkflowStep):
             return StepResult(
                 step_id=self.id,
                 status=StepStatus.FAILED,
-                error=str(e),
+                error=redact(format_error(e)),
             )

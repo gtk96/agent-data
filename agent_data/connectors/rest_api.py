@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
 from agent_data.core.connector import BaseConnector
+from agent_data.core.errors import format_error
 from agent_data.core.models import (
     DataSourceConfig,
     Query,
@@ -17,6 +18,7 @@ from agent_data.core.models import (
     QueryResult,
     QueryType,
 )
+from agent_data.core.redact import redact
 
 # Endpoint must be a relative path; absolute URLs are rejected to prevent SSRF.
 _ENDPOINT_RE = re.compile(r"^[A-Za-z0-9_\-./]+$")
@@ -165,13 +167,13 @@ class RESTAPIConnector(BaseConnector):
         except ValueError as e:
             return QueryResult(
                 source=self.name,
-                error=str(e),
+                error=redact(format_error(e)),
                 query_time_ms=(time.time() - start_time) * 1000,
             )
         except Exception as e:
             return QueryResult(
                 source=self.name,
-                error=str(e),
+                error=redact(format_error(e)),
                 query_time_ms=(time.time() - start_time) * 1000,
             )
 
@@ -240,7 +242,7 @@ class RESTAPIConnector(BaseConnector):
         except Exception as e:
             return QueryResult(
                 source=self.name,
-                error=f"Failed to parse response: {str(e)}",
+                error=redact(format_error(e, fallback="Failed to parse response")),
                 query_time_ms=(time.time() - start_time) * 1000,
             )
 

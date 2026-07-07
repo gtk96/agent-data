@@ -4,7 +4,7 @@ Agent definition for multi-agent collaboration.
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -20,7 +20,14 @@ class AgentRole(str, Enum):
 
 
 class AgentMessage(BaseModel):
-    """Message between agents."""
+    """Message between agents.
+
+    WARNING: ``content`` is typed ``Any`` for backward compatibility. Worker
+    agents pass ``content`` straight into their executor — if the executor
+    forwards content to an LLM as a prompt, this is a prompt injection surface.
+    New code should define a Pydantic payload model (e.g. ``TaskPayload``) and
+    validate before executing.
+    """
 
     id: str = Field(default_factory=lambda: str(uuid4()), description="Message ID")
     sender: str = Field(..., description="Sender agent ID")
@@ -38,6 +45,7 @@ class Agent(ABC):
         name: str,
         role: AgentRole = AgentRole.WORKER,
         capabilities: Optional[List[str]] = None,
+        allowed_senders: Optional[Set[str]] = None,
     ):
         """
         Initialize agent.
@@ -46,11 +54,16 @@ class Agent(ABC):
             name: Agent name
             role: Agent role
             capabilities: List of agent capabilities
+            allowed_senders: Optional set of sender IDs allowed to dispatch to
+                this agent. ``None`` means "any sender"; ``{"coordinator"}``
+                means only the coordinator may call. Enforced by
+                ``AgentOrchestrator.send_message`` / ``broadcast``.
         """
         self.id = str(uuid4())
         self.name = name
         self.role = role
         self.capabilities = capabilities or []
+        self.allowed_senders = allowed_senders
         self._inbox: List[AgentMessage] = []
 
     @abstractmethod

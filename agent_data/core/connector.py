@@ -21,6 +21,9 @@ class BaseConnector(ABC):
         self.config = config
         self._connected = False
 
+    def __repr__(self) -> str:
+        return f"<{type(self).__name__} name={self.name!r} type={self.type.value!r}>"
+
     @property
     def name(self) -> str:
         return self.config.name

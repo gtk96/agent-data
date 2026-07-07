@@ -24,12 +24,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,api]"
+          pip install pytest-asyncio aiosqlite
 
       - name: Lint with flake8
         run: |
           flake8 agent_data/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          flake8 agent_data/ --count --max-complexity=15 --max-line-length=120 --ignore=F401,F403,C901,W292,E501,F841 --statistics
+          flake8 agent_data/ --count --max-complexity=15 --max-line-length=120 --ignore=F401,F403,C901,W292,E501,F841,W503,E203 --statistics
 
       - name: Check formatting with black
         run: |

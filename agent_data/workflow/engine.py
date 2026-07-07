@@ -64,11 +64,13 @@ class WorkflowEngine:
                 else:
                     state.data[step.name] = result.output
 
-            state.next_step()
-
-            # Stop on failure
+            # Stop on failure — leave current_step pointing at the failing step
+            # so callers can recover / inspect from there, rather than advancing
+            # past the failure.
             if result.status == StepStatus.FAILED:
                 break
+
+            state.next_step()
 
         return {
             "state": state.data,

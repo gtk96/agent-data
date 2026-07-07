@@ -1,18 +1,44 @@
 """Built-in connectors for Agent Data framework."""
 
 import logging
-from agent_data.core.connector import register_connector
+
+from agent_data.core.connector import list_connectors, register_connector
 
 logger = logging.getLogger(__name__)
 
-# Import and register built-in connectors
+
+def available_connectors():
+    """Return names of connectors that successfully registered.
+
+    Useful for diagnostics — when ``get_connector(name)`` returns ``None``,
+    call this to see what is actually available in the current environment.
+    """
+    return list_connectors()
+
+
+__all__ = [
+    "available_connectors",
+    "SQLConnector",
+    "PostgreSQLConnector",
+    "InMemoryVectorConnector",
+    "ChromaConnector",
+    "QdrantConnector",
+    "PineconeConnector",
+    "RESTAPIConnector",
+    "FileConnector",
+]
+
+# Import and register built-in connectors.
+# Optional-dependency missing is logged at WARNING (not DEBUG) so users notice
+# why a feature they expected isn't available.
+
 # SQL connectors
 try:
     from agent_data.connectors.sql import SQLConnector
 
     register_connector("sql", SQLConnector)
 except ImportError as e:
-    logger.debug(f"SQL connector not available: {e}")
+    logger.warning("SQL connector not available: %s", e)
 
 # PostgreSQL connector
 try:
@@ -20,7 +46,7 @@ try:
 
     register_connector("postgresql", PostgreSQLConnector)
 except ImportError as e:
-    logger.debug(f"PostgreSQL connector not available: {e}")
+    logger.warning("PostgreSQL connector not available: %s", e)
 
 # Vector store connectors
 try:
@@ -28,7 +54,7 @@ try:
 
     register_connector("vector", InMemoryVectorConnector)
 except ImportError as e:
-    logger.debug(f"Vector connector not available: {e}")
+    logger.warning("Vector connector not available: %s", e)
 
 # Chroma connector
 try:
@@ -36,7 +62,7 @@ try:
 
     register_connector("chroma", ChromaConnector)
 except ImportError as e:
-    logger.debug(f"Chroma connector not available: {e}")
+    logger.warning("Chroma connector not available: %s", e)
 
 # Qdrant connector
 try:
@@ -44,7 +70,7 @@ try:
 
     register_connector("qdrant", QdrantConnector)
 except ImportError as e:
-    logger.debug(f"Qdrant connector not available: {e}")
+    logger.warning("Qdrant connector not available: %s", e)
 
 # Pinecone connector
 try:
@@ -52,7 +78,7 @@ try:
 
     register_connector("pinecone", PineconeConnector)
 except ImportError as e:
-    logger.debug(f"Pinecone connector not available: {e}")
+    logger.warning("Pinecone connector not available: %s", e)
 
 # REST API connector
 try:
@@ -60,7 +86,7 @@ try:
 
     register_connector("rest_api", RESTAPIConnector)
 except ImportError as e:
-    logger.debug(f"REST API connector not available: {e}")
+    logger.warning("REST API connector not available: %s", e)
 
 # File connectors
 try:
@@ -68,13 +94,4 @@ try:
 
     register_connector("file", FileConnector)
 except ImportError as e:
-    logger.debug(f"File connector not available: {e}")
-
-__all__ = [
-    "SQLConnector",
-    "PostgreSQLConnector",
-    "InMemoryVectorConnector",
-    "ChromaConnector",
-    "RESTAPIConnector",
-    "FileConnector",
-]
+    logger.warning("File connector not available: %s", e)

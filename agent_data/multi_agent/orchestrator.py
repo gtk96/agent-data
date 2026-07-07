@@ -9,7 +9,13 @@ from agent_data.multi_agent.agent import Agent, AgentMessage, AgentRole
 
 
 class AgentOrchestrator:
-    """Orchestrates multiple agents."""
+    """Orchestrates multiple agents.
+
+    Sender authorization: when an agent has ``allowed_senders`` set, the
+    orchestrator rejects messages from senders not in that set. This prevents
+    arbitrary agents from triggering expensive operations on workers that
+    were only meant to receive coordinator-issued tasks.
+    """
 
     def __init__(self):
         self._agents: Dict[str, Agent] = {}
@@ -33,10 +39,21 @@ class AgentOrchestrator:
                 return agent
         return None
 
+    @staticmethod
+    def _is_authorized(agent: Agent, sender_id: str) -> bool:
+        """Check if sender_id is allowed to dispatch to this agent."""
+        allowed = agent.allowed_senders
+        if allowed is None:
+            return True
+        return sender_id in allowed
+
     async def send_message(self, message: AgentMessage) -> Optional[AgentMessage]:
         """Send message to an agent and get response."""
         agent = self._agents.get(message.receiver)
         if agent is None:
+            return None
+
+        if not self._is_authorized(agent, message.sender):
             return None
 
         agent.receive(message)
@@ -45,19 +62,26 @@ class AgentOrchestrator:
     async def broadcast(
         self, sender_id: str, content: Any, message_type: str = "broadcast"
     ) -> List[AgentMessage]:
-        """Broadcast message to all agents except sender."""
+        """Broadcast message to all agents except sender.
+
+        Sender authorization: agents whose ``allowed_senders`` set excludes
+        ``sender_id`` are silently skipped (not delivered to).
+        """
         responses = []
         for agent_id, agent in self._agents.items():
-            if agent_id != sender_id:
-                message = AgentMessage(
-                    sender=sender_id,
-                    receiver=agent_id,
-                    content=content,
-                    message_type=message_type,
-                )
-                response = await agent.process(message)
-                if response:
-                    responses.append(response)
+            if agent_id == sender_id:
+                continue
+            if not self._is_authorized(agent, sender_id):
+                continue
+            message = AgentMessage(
+                sender=sender_id,
+                receiver=agent_id,
+                content=content,
+                message_type=message_type,
+            )
+            response = await agent.process(message)
+            if response:
+                responses.append(response)
         return responses
 
     async def execute_task(

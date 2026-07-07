@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 from agent_data.cache.base import BaseCache
 from agent_data.cache.memory import MemoryCache
 from agent_data.core.connector import BaseConnector, get_connector, list_connectors
+from agent_data.core.errors import format_error
 from agent_data.core.models import (
     AgentContext,
     DataSource,
@@ -19,6 +20,7 @@ from agent_data.core.models import (
     QueryResult,
     QueryType,
 )
+from agent_data.core.redact import redact
 from agent_data.tracing.base import BaseTracer, TraceSpan
 from agent_data.tracing.memory import MemoryTracer
 
@@ -153,8 +155,14 @@ class AgentDataClient:
             return connector
 
     def _generate_cache_key(self, query: Query, context: Optional[AgentContext] = None) -> str:
-        """Generate a cache key for a query."""
-        key_parts = {
+        """Generate a cache key for a query.
+
+        For natural-language queries (marked by _parse_natural_language via the
+        'natural_language' metadata key), the raw text is excluded from the
+        hash — any punctuation / whitespace change would otherwise defeat the
+        cache. NL queries are bucketed by (source, query_type) only.
+        """
+        key_parts: Dict[str, Any] = {
             "source": query.source,
             "query_type": query.query_type,
             "filters": [f.model_dump() for f in query.filters] if query.filters else [],
@@ -162,8 +170,13 @@ class AgentDataClient:
             "limit": query.limit,
             "offset": query.offset,
             "order_by": query.order_by,
-            "query": query.query,
         }
+        # If the query originated from natural-language input, drop the raw
+        # text from the cache key.
+        if query.metadata.get("natural_language"):
+            key_parts["query"] = None
+        else:
+            key_parts["query"] = query.query
         if context:
             key_parts["context"] = {
                 "agent_id": context.agent_id,
@@ -224,6 +237,9 @@ class AgentDataClient:
                 if cached_result is not None:
                     result = QueryResult(**cached_result)
                     result.cached = True
+                    # cache hit 也填 query_time_ms,便于上层观测
+                    if result.query_time_ms is None or result.query_time_ms == 0:
+                        result.query_time_ms = (time.time() - start_time) * 1000
                     if span:
                         span.set_attribute("cache_hit", True)
                         await self._tracer.finish_span(span)
@@ -269,7 +285,7 @@ class AgentDataClient:
                 query_time_ms=(time.time() - start_time) * 1000,
             )
         except Exception as e:
-            error_msg = str(e)
+            error_msg = redact(format_error(e))
             if span:
                 span.finish(status="error", error=error_msg)
             return QueryResult(
@@ -418,7 +434,7 @@ class AgentDataClient:
             return task_result
 
         except Exception as e:
-            task_result = task.fail(str(e))
+            task_result = task.fail(redact(format_error(e)))
 
             if span:
                 span.set_attribute("task_status", "failed")
@@ -431,6 +447,7 @@ class AgentDataClient:
         plan: TaskPlan,
         executor: Callable,
         parallel: bool = True,
+        max_concurrent: int = 5,
         context: Optional[AgentContext] = None,
     ) -> Dict[str, TaskResult]:
         """
@@ -440,6 +457,7 @@ class AgentDataClient:
             plan: Task plan to execute
             executor: Async function to execute tasks
             parallel: Whether to execute tasks in parallel
+            max_concurrent: Max parallel tasks (only used when parallel=True)
             context: Agent context
 
         Returns:
@@ -449,7 +467,7 @@ class AgentDataClient:
         for task in plan.tasks:
             task_executor.register(task.name, executor)
 
-        plan_executor = PlanExecutor(task_executor)
+        plan_executor = PlanExecutor(task_executor, max_concurrent=max_concurrent)
 
         if parallel:
             return await plan_executor.execute(plan)

@@ -1,6 +1,6 @@
 """MCP (Model Context Protocol) module."""
 
 from agent_data.mcp.server import MCPServer
-from agent_data.mcp.tool import MCPTool
+from agent_data.mcp.tool import DataQueryTool, MCPTool
 
-__all__ = ["MCPServer", "MCPTool"]
+__all__ = ["MCPServer", "MCPTool", "DataQueryTool"]

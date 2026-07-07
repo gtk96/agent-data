@@ -1,14 +1,26 @@
 """Planning module for Agent Data framework."""
 
-from agent_data.planning.task import Task, TaskStatus, TaskResult
-from agent_data.planning.planner import TaskPlanner, SimpleTaskPlanner
-from agent_data.planning.executor import TaskExecutor
+from agent_data.planning.task import Task, TaskPlan, TaskResult, TaskStatus
+from agent_data.planning.planner import (
+    CompositeTaskPlanner,
+    SimpleTaskPlanner,
+    TaskPlanner,
+)
+from agent_data.planning.executor import (
+    FunctionTaskExecutor,
+    PlanExecutor,
+    TaskExecutor,
+)
 
 __all__ = [
     "Task",
-    "TaskStatus",
+    "TaskPlan",
     "TaskResult",
+    "TaskStatus",
     "TaskPlanner",
+    "CompositeTaskPlanner",
     "SimpleTaskPlanner",
     "TaskExecutor",
+    "FunctionTaskExecutor",
+    "PlanExecutor",
 ]

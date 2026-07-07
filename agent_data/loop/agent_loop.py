@@ -11,6 +11,9 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from agent_data.core.errors import format_error
+from agent_data.core.redact import redact
+
 
 class LoopStatus(str, Enum):
     """Agent loop status."""
@@ -204,7 +207,7 @@ class LoopRunner:
                     status=LoopStatus.FAILED,
                     iterations=i,
                     history=history,
-                    error=str(e),
+                    error=redact(format_error(e)),
                     duration_ms=(time.time() - start_time) * 1000,
                 )
 
