@@ -27,7 +27,7 @@ jobs:
       - name: Install package
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,api]"
+          pip install -e ".[dev,api,nl2sql]"
 
       - name: Black format check
         run: black --check agent_data/ tests/
@@ -38,7 +38,7 @@ jobs:
         # (existing codebase re-exports), F841 (unused vars in except),
         # E402 (test files use late imports for asyncio), E712 (bool comparison
         # style). These should be cleaned up in a follow-up.
-        run: flake8 --max-line-length=100 --extend-ignore=E501,W503,E203,F401,F403,F841,E402,E712 agent_data/ tests/
+        run: flake8 --max-line-length=100 --extend-ignore=E501,W503,E203,F401,F403,F841,E402,E712 agent_data/ tests/ run_demo.py
 
       - name: Mypy
         run: mypy agent_data/ || true  # informational; many third-party libs missing stubs
