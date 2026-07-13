@@ -1,0 +1,43 @@
+# 智能问数配置文件
+
+llm:
+  provider: agnes
+  api_url: https://api.example.com/v1
+  api_key: ${AGNES_API_KEY}
+  model: agnes-2.0-flash
+  temperature: 0.0
+  max_tokens: 4096
+  timeout: 30
+  max_retries: 3
+
+data_sources:
+  - name: example_db
+    type: sql
+    connection: :memory:
+    description: 示例数据库
+
+nl2sql:
+  max_rows: 100
+  timeout_seconds: 30
+  enable_memory: true
+  max_turns: 10
+  readonly: true
+
+security:
+  validator:
+    readonly: true
+    allow_union: false
+    allow_subquery: true
+    max_joins: 5
+    blocked_tables:
+      - passwords
+      - audit_log
+    query_timeout: 30
+    max_rows: 100
+
+web:
+  host: 0.0.0.0
+  port: 8000
+  cors_origins:
+    - http://localhost:3000
+    - http://localhost:5173

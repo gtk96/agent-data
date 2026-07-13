@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智能问数 - 自然语言数据查询</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #1d93ab 0%, #2bb3cd 100%);
+      color: white;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .header .actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .header select {
+      padding: 6px 10px;
+      border-radius: 4px;
+      border: none;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      font-size: 13px;
+    }
+    .header select option { color: #333; }
+    .header button {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.3);
+      background: transparent;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .header button:hover { background: rgba(255,255,255,0.2); }
+    .header .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+    }
+
+    /* Main */
+    .main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: white;
+      border-right: 1px solid #e5e5e5;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e5e5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sidebar-header h3 { font-size: 13px; font-weight: 600; }
+    .sidebar-header button {
+      padding: 4px 8px;
+      font-size: 12px;
+      background: #1d93ab;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .sidebar-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .history-item {
+      padding: 10px;
+      margin-bottom: 6px;
+      border-radius: 6px;
+      background: #f9fafb;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .history-item:hover {
+      border-color: #1d93ab;
+      background: white;
+    }
+    .history-item .question {
+      font-size: 12px;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .history-item .meta {
+      font-size: 11px;
+      color: #999;
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Chat */
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: white;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .message {
+      margin-bottom: 20px;
+      animation: fadeIn 0.3s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .message-user {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .message-user .bubble {
+      background: #1d93ab;
+      color: white;
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 70%;
+    }
+    .message-assistant {
+      display: flex;
+      justify-content: flex-start;
+    }
+    .message-assistant .bubble {
+      background: #f3f4f6;
+      color: #333;
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 85%;
+      line-height: 1.6;
+    }
+    .message-error {
+      display: flex;
+      justify-content: flex-start;
+    }
+    .message-error .bubble {
+      background: #fee2e2;
+      color: #991b1b;
+      padding: 10px 14px;
+      border-radius: 12px;
+      max-width: 70%;
+    }
+
+    /* Input */
+    .input-area {
+      border-top: 1px solid #e5e5e5;
+      padding: 16px 20px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      background: white;
+    }
+    .input-area textarea {
+      flex: 1;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 44px;
+      max-height: 120px;
+    }
+    .input-area textarea:focus {
+      outline: none;
+      border-color: #1d93ab;
+    }
+    .input-area button {
+      padding: 10px 20px;
+      background: #1d93ab;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .input-area button:hover:not(:disabled) { background: #2bb3cd; }
+    .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* SQL Panel */
+    .sql-panel {
+      margin-top: 10px;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .sql-header {
+      background: rgba(29, 147, 171, 0.1);
+      padding: 8px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1d93ab;
+    }
+    .sql-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .sql-actions button {
+      padding: 4px 10px;
+      font-size: 11px;
+      border: 1px solid #e5e5e5;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+    }
+    .sql-actions button:hover { background: rgba(29, 147, 171, 0.1); border-color: #1d93ab; }
+    .sql-actions .btn-execute {
+      background: #1d93ab;
+      color: white;
+      border-color: #1d93ab;
+    }
+    .sql-code {
+      padding: 12px;
+      background: #1f2937;
+      color: #f9fafb;
+      font-family: "JetBrains Mono", "Consolas", monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+
+    /* Result Table */
+    .result-panel {
+      margin-top: 10px;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .result-header {
+      background: rgba(29, 147, 171, 0.05);
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1d93ab;
+    }
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .result-table th, .result-table td {
+      padding: 8px 12px;
+      text-align: left;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .result-table th {
+      background: #f9fafb;
+      font-weight: 600;
+    }
+    .result-table tr:hover td { background: #f9fafb; }
+    .result-meta {
+      padding: 6px 12px;
+      font-size: 11px;
+      color: #999;
+      background: #f9fafb;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #ccc;
+      border-top-color: #1d93ab;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+    .empty-state h2 { font-size: 18px; margin-bottom: 8px; color: #666; }
+    .empty-state p { font-size: 14px; }
+
+    .examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+      justify-content: center;
+    }
+    .example-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      background: #f3f4f6;
+      border: 1px solid #e5e5e5;
+      border-radius: 16px;
+      cursor: pointer;
+      color: #666;
+    }
+    .example-btn:hover { background: #1d93ab; color: white; border-color: #1d93ab; }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #333;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      z-index: 9999;
+      animation: slideIn 0.3s;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔍 智能问数</h1>
+    <div class="actions">
+      <div class="status">
+        <span class="status-dot"></span>
+        <span id="statusText">已连接</span>
+      </div>
+      <select id="dataSourceSelect">
+        <option value="default">默认数据源</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h3>📚 查询历史</h3>
+        <button onclick="loadHistory()">🔄</button>
+      </div>
+      <div class="sidebar-list" id="historyList">
+        <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
+          暂无历史记录
+        </div>
+      </div>
+    </div>
+
+    <div class="chat-container">
+      <div class="messages" id="messages">
+        <div class="empty-state">
+          <h2>👋 欢迎使用智能问数</h2>
+          <p>用自然语言提问，自动生成 SQL 并查询数据</p>
+          <div class="examples">
+            <button class="example-btn" onclick="setInput('SELECT * FROM users')">查询所有用户</button>
+            <button class="example-btn" onclick="setInput('SELECT * FROM products')">查询产品列表</button>
+            <button class="example-btn" onclick="setInput('SELECT city, COUNT(*) as count FROM users GROUP BY city')">各城市用户数</button>
+            <button class="example-btn" onclick="setInput('SELECT name, price FROM products WHERE category = \'电子产品\'')">电子产品列表</button>
+            <button class="example-btn" onclick="setInput('SELECT SUM(amount) as total FROM orders')">订单总额</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <textarea id="questionInput" placeholder="输入你的问题，例如：查询所有用户..." rows="1"></textarea>
+        <button onclick="sendMessage()" id="sendBtn">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    let currentSession = 'default';
+
+    // Auto-resize textarea
+    const input = document.getElementById('questionInput');
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function setInput(text) {
+      input.value = text;
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      input.focus();
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    async function checkHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/health`);
+        const data = await res.json();
+        if (data.database) {
+          document.getElementById('statusText').textContent = '已连接';
+          document.querySelector('.status-dot').style.background = '#4ade80';
+        } else {
+          document.getElementById('statusText').textContent = '离线';
+          document.querySelector('.status-dot').style.background = '#f87171';
+        }
+      } catch (e) {
+        document.getElementById('statusText').textContent = '连接失败';
+        document.querySelector('.status-dot').style.background = '#f87171';
+      }
+    }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/history/list?session_id=${currentSession}&limit=20`);
+        const data = await res.json();
+        const list = document.getElementById('historyList');
+
+        if (!data.items || data.items.length === 0) {
+          list.innerHTML = '<div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">暂无历史记录</div>';
+          return;
+        }
+
+        list.innerHTML = data.items.map(item => `
+          <div class="history-item" onclick="loadHistoryItem('${item.id}')">
+            <div class="question">${escapeHtml(item.question)}</div>
+            <div class="meta">
+              <span>${formatTime(item.timestamp)}</span>
+              <span>${item.row_count} 行</span>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Failed to load history:', e);
+      }
+    }
+
+    async function loadHistoryItem(itemId) {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/history/item/${itemId}?session_id=${currentSession}`);
+        const item = await res.json();
+        if (item.sql) {
+          addUserMessage(item.question);
+          addAssistantSQL(item.sql, item.answer, item.data, item.columns);
+        }
+      } catch (e) {
+        console.error('Failed to load item:', e);
+      }
+    }
+
+    function formatTime(ts) {
+      const diff = Date.now() / 1000 - ts;
+      if (diff < 60) return '刚刚';
+      if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+      if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+      return new Date(ts * 1000).toLocaleDateString('zh-CN');
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
+    function addUserMessage(text) {
+      const messages = document.getElementById('messages');
+      // Remove empty state if exists
+      const empty = messages.querySelector('.empty-state');
+      if (empty) empty.remove();
+
+      const div = document.createElement('div');
+      div.className = 'message message-user';
+      div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addAssistantSQL(sql, answer, data, columns) {
+      const messages = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'message message-assistant';
+
+      let html = '<div class="bubble">';
+
+      if (answer) {
+        html += `<div style="margin-bottom: 8px;">${escapeHtml(answer)}</div>`;
+      }
+
+      html += `
+        <div class="sql-panel">
+          <div class="sql-header">
+            <span>🔍 生成的 SQL</span>
+            <div class="sql-actions">
+              <button onclick="copySQL(this, '${escapeHtml(sql).replace(/'/g, '\\\'')}')">复制</button>
+              <button onclick="toggleSQL(this)">收起</button>
+            </div>
+          </div>
+          <pre class="sql-code">${escapeHtml(sql)}</pre>
+        </div>
+      `;
+
+      if (data && data.length > 0) {
+        html += renderResultTable(data, columns);
+      }
+
+      html += '</div>';
+      div.innerHTML = html;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addAssistantError(error) {
+      const messages = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'message message-error';
+      div.innerHTML = `<div class="bubble">❌ ${escapeHtml(error)}</div>`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function renderResultTable(data, columns) {
+      if (!data || data.length === 0) return '';
+      const cols = columns || Object.keys(data[0]);
+      const rows = data.slice(0, 20);
+
+      let html = `
+        <div class="result-panel">
+          <div class="result-header">📊 查询结果 (${data.length} 行)</div>
+          <table class="result-table">
+            <thead>
+              <tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>
+            </thead>
+            <tbody>
+              ${rows.map(row => `
+                <tr>${cols.map(c => `<td>${escapeHtml(row[c] ?? '')}</td>`).join('')}</tr>
+              `).join('')}
+            </tbody>
+          </table>
+      `;
+      if (data.length > 20) {
+        html += `<div class="result-meta">显示前 20 行，共 ${data.length} 行</div>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function copySQL(btn, sql) {
+      navigator.clipboard.writeText(sql).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = '✓ 已复制';
+        setTimeout(() => btn.textContent = orig, 2000);
+      });
+    }
+
+    function toggleSQL(btn) {
+      const panel = btn.closest('.sql-panel');
+      const code = panel.querySelector('.sql-code');
+      if (code.style.display === 'none') {
+        code.style.display = 'block';
+        btn.textContent = '收起';
+      } else {
+        code.style.display = 'none';
+        btn.textContent = '展开';
+      }
+    }
+
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      const sendBtn = document.getElementById('sendBtn');
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = '<span class="loading"></span>处理中...';
+
+      addUserMessage(text);
+      input.value = '';
+      input.style.height = 'auto';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/sql/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sql: text,
+            max_rows: 100,
+            timeout: 30,
+          }),
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          addAssistantSQL(result.sql, `查询成功`, result.data, result.columns);
+
+          // Save to history
+          saveHistory(text, result);
+        } else {
+          addAssistantError(result.error || '查询失败');
+        }
+      } catch (e) {
+        addAssistantError(e.message);
+      } finally {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '发送';
+      }
+    }
+
+    async function saveHistory(question, result) {
+      try {
+        await fetch(`${API_BASE}/api/v1/history/save`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: question,
+            sql: result.sql,
+            answer: `查询成功，返回 ${result.row_count} 行`,
+            data: result.data,
+            columns: result.columns,
+            row_count: result.row_count,
+            query_time_ms: result.query_time_ms,
+            session_id: currentSession,
+          }),
+        });
+        loadHistory(); // Refresh sidebar
+      } catch (e) {
+        console.error('Failed to save history:', e);
+      }
+    }
+
+    // Initialize
+    checkHealth();
+    loadHistory();
+    setInterval(checkHealth, 30000);
+  </script>
+</body>
+</html>

@@ -55,3 +55,18 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Mimocode internal directory
+.mimocode/
+
+# Demo data (created by run_demo.py)
+data/
+
+# NextChat frontend (clone separately)
+nextchat/
+nextchat-frontend/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

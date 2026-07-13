@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # Python NL2SQL 后端
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    environment:
+      - AGNES_API_KEY=${AGNES_API_KEY:-sk-agent-data-local}
+      - AGNES_API_URL=${AGNES_API_URL:-https://api.example.com/v1}
+    volumes:
+      - ./config:/app/config
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # NextChat 前端
+  frontend:
+    build:
+      context: ./nextchat
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - OPENAI_API_KEY=sk-agent-data-local
+      - BASE_URL=http://backend:8000
+      - CUSTOM_MODELS=agnes-2.0-flash,agnes
+      - DEFAULT_MODEL=agnes-2.0-flash
+      - HIDE_USER_API_KEY=1
+    depends_on:
+      backend:
+        condition: service_healthy

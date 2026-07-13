@@ -59,6 +59,16 @@ llamaindex = [
 all = [
     "agent-data[postgres,sqlite,chroma,qdrant,api,tracing]",
 ]
+nl2sql = [
+    "aiohttp>=3.9.0",
+    "sqlparse>=0.4.4",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pyyaml>=6.0",
+]
+mysql = [
+    "aiomysql>=0.2.0",
+]
 
 [tool.setuptools.packages.find]
 include = ["agent_data*"]

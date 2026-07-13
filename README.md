@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-41%20passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-129%20passed-brightgreen)]()
 
 ## 核心功能
 
@@ -17,6 +17,33 @@
 | 多 Agent 协作 | Agent 间通信、任务分发 |
 | MCP 协议 | Model Context Protocol 支持 |
 | 可观测性 | OpenTelemetry 分布式追踪 |
+| **智能问数 (Text-to-SQL)** | **自然语言生成 SQL，自动查询并回答** 🆕 |
+| **LLM 集成** | **Agnes-2.0-flash 等多种 LLM 后端** 🆕 |
+
+## 智能问数（NL2SQL）🆕
+
+将自然语言问题自动转换为 SQL 查询，支持多源异构数据库。
+
+```bash
+# 安装 NL2SQL 依赖
+pip install agent-data[nl2sql,mysql]
+
+# 配置环境变量
+export AGNES_API_KEY=your-api-key
+export AGNES_API_URL=https://apihub.agnes-ai.com/v1
+
+# 启动服务
+python run_demo.py
+# 访问 http://localhost:8000
+```
+
+**特性**：
+- LLM 驱动的 SQL 生成
+- SQL 安全校验（只读模式、防注入）
+- 对话记忆（支持追问）
+- 查询历史与收藏
+- Web 界面 + REST API
+- 兼容 OpenAI API 格式
 
 ## 快速开始
 
@@ -176,7 +203,7 @@ response = await server.handle_request({
 ```
 agent_data/
 ├── core/           # 核心客户端和模型
-├── connectors/     # 数据源连接器
+├── connectors/     # 数据源连接器（SQL/向量库/API/文件）
 ├── cache/          # 缓存模块
 ├── tracing/        # 追踪模块
 ├── planning/       # 任务规划引擎
@@ -184,7 +211,10 @@ agent_data/
 ├── loop/           # Agent Loop
 ├── multi_agent/    # 多 Agent 协作
 ├── mcp/            # MCP 协议
-└── integrations/   # 框架集成
+├── integrations/   # 框架集成
+├── llm/            # LLM 集成 (Agnes/OpenAI 兼容) 🆕
+├── nl2sql/         # 智能问数引擎 (Text-to-SQL) 🆕
+└── web/            # FastAPI Web 服务 🆕
 ```
 
 ## 开发
@@ -206,6 +236,46 @@ black agent_data/ tests/
 # 运行示例
 python examples/integration_example.py
 python examples/real_world_case.py
+
+# 智能问数示例
+python examples/nl2sql_example.py
+```
+
+## NL2SQL API 示例 🆕
+
+```python
+import asyncio
+from agent_data import LLMConfig, create_llm, NL2SQLEngine
+from agent_data.connectors.sql import SQLConnector
+from agent_data.core.models import DataSourceConfig, DataSourceType
+
+async def main():
+    # 配置 LLM
+    llm = create_llm(LLMConfig(
+        provider="agnes",
+        api_url="https://apihub.agnes-ai.com/v1",
+        api_key="your-key",
+        model="agnes-2.0-flash",
+    ))
+
+    # 配置数据库
+    connector = SQLConnector(DataSourceConfig(
+        name="my_db",
+        type=DataSourceType.SQL,
+        connection="sqlite:///mydb.db",
+    ))
+    await connector.connect()
+
+    # 创建引擎
+    engine = NL2SQLEngine(llm=llm, connector=connector)
+
+    # 自然语言查询
+    result = await engine.query("今年销售额最高的产品是什么？")
+    print(result.sql)      # 生成的 SQL
+    print(result.answer)   # 自然语言回答
+    print(result.data)     # 查询结果
+
+asyncio.run(main())
 ```
 
 ## 测试
