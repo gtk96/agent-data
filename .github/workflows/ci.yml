@@ -61,6 +61,6 @@ jobs:
         run: pip install pip-audit
 
       - name: Audit
-        # Audit dev + api extras (covers aiohttp, asyncpg, etc.).
+        # Audit dev + api + nl2sql extras (covers aiohttp, asyncpg, fastapi, sqlparse, etc.).
         # Strict mode fails the build on any known vulnerability.
-        run: pip-audit -r <(pip install -e ".[dev,api]" --dry-run 2>&1 | grep -oE '[a-zA-Z0-9._-]+==[0-9.]+' | sort -u) || true
+        run: pip-audit -r <(pip install -e ".[dev,api,nl2sql]" --dry-run 2>&1 | grep -oE '[a-zA-Z0-9._-]+==[0-9.]+' | sort -u) || true
