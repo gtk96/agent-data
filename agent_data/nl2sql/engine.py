@@ -17,6 +17,19 @@ from agent_data.nl2sql.validator import SQLValidator, ValidatorConfig
 logger = logging.getLogger(__name__)
 
 
+class LLMResponseParseError(Exception):
+    """Raised when LLM response cannot be parsed into a structured SQL payload.
+
+    Carries the raw response text so callers can log it for debugging
+    or feed it into a corrective retry prompt.
+    """
+
+    def __init__(self, message: str, raw_response: str = ""):
+        full = message if not raw_response else f"{message} Raw: {raw_response!r}"
+        super().__init__(full)
+        self.raw_response = raw_response
+
+
 class NL2SQLConfig(BaseModel):
     """NL2SQL engine configuration."""
 
@@ -153,6 +166,23 @@ class NL2SQLEngine:
                 session_id=session_id,
             )
 
+        except LLMResponseParseError as e:
+            logger.error(f"LLM response could not be parsed: {e}")
+            query_time_ms = (time.monotonic() - start_time) * 1000
+            preview = (e.raw_response or "")[:300]
+            return NL2SQLResult(
+                question=question,
+                sql="",
+                explanation=f"LLM response parse error: {e}",
+                answer=(
+                    "I couldn't generate a valid SQL query. "
+                    "The model returned an unexpected response. "
+                    f"Raw response (truncated): {preview!r}"
+                ),
+                confidence=0.0,
+                session_id=session_id,
+                query_time_ms=query_time_ms,
+            )
         except Exception as e:
             logger.error(f"NL2SQL query failed: {e}")
             query_time_ms = (time.monotonic() - start_time) * 1000
@@ -172,7 +202,7 @@ class NL2SQLEngine:
         schema_info: str,
         conversation_context: str,
     ) -> Dict[str, Any]:
-        """Generate SQL using LLM.
+        """Generate SQL using LLM with one corrective retry on parse failure.
 
         Args:
             question: User's question.
@@ -181,110 +211,151 @@ class NL2SQLEngine:
 
         Returns:
             Dictionary with sql, explanation, tables_used, confidence.
+
+        Raises:
+            LLMResponseParseError: If the LLM fails to return a parseable
+                SQL payload after the initial attempt and one retry.
         """
         messages = PromptManager.build_sql_generation_messages(
             schema_info=schema_info,
             question=question,
             conversation_context=conversation_context,
         )
-
         llm_messages = [Message(role=m["role"], content=m["content"]) for m in messages]
-        response = await self.llm.complete(llm_messages)
 
-        # Parse JSON response
-        content = response.content.strip()
-        logger.info(f"=== LLM RAW RESPONSE ===\n{content}\n=== END ===")
-        result = self._parse_llm_response(content)
-        logger.info(f"=== PARSED RESULT ===\n{result}\n=== END ===")
+        for attempt in range(2):
+            response = await self.llm.complete(llm_messages)
+            content = response.content.strip()
+            logger.info(
+                f"=== LLM RAW RESPONSE (attempt {attempt + 1}) ===\n" f"{content}\n=== END ==="
+            )
+            try:
+                result = self._parse_llm_response(content)
+                logger.info(f"=== PARSED RESULT ===\n{result}\n=== END ===")
+                return result
+            except LLMResponseParseError as exc:
+                if attempt == 0:
+                    logger.warning(
+                        "LLM response was not parseable; retrying with corrective prompt"
+                    )
+                    llm_messages = self._build_retry_messages(question, exc.raw_response)
+                else:
+                    logger.error(
+                        f"LLM response still not parseable after retry: {exc.raw_response[:200]}"
+                    )
+                    raise
 
-        return result
+    def _build_retry_messages(self, question: str, previous_response: str) -> List[Message]:
+        """Build a corrective retry prompt that pushes the LLM to emit JSON.
+
+        Args:
+            question: Original user question.
+            previous_response: The unparseable LLM response, included so
+                the model can see what it produced and self-correct.
+
+        Returns:
+            List of messages to send to the LLM for the retry attempt.
+        """
+        corrective_system = (
+            "Your previous response did not follow the required JSON output format. "
+            "You must respond with ONLY a single JSON object — no prose, no "
+            "markdown fence, no explanation outside the JSON. The JSON must "
+            "include a non-empty 'sql' field (string), plus optional "
+            "'explanation', 'tables_used', and 'confidence' fields. "
+            "If the question cannot be answered, return "
+            '{"sql": "", "explanation": "<reason>"}.'
+        )
+        return [
+            Message(role="system", content=corrective_system),
+            Message(role="user", content=f"Question: {question}"),
+            Message(
+                role="user",
+                content=(
+                    "Your previous (invalid) response was:\n"
+                    f"{previous_response}\n"
+                    "Respond again, in valid JSON only."
+                ),
+            ),
+        ]
 
     def _parse_llm_response(self, content: str) -> Dict[str, Any]:
-        """Parse LLM response to extract SQL.
+        """Parse LLM response into a structured SQL payload.
+
+        Strictly returns a dict with a non-empty ``sql`` field. Raises
+        :class:`LLMResponseParseError` if the response is empty, has no SQL,
+        or otherwise cannot be parsed. Never silently produces empty SQL.
 
         Args:
             content: Raw LLM response content.
 
         Returns:
-            Dictionary with sql, explanation, tables_used, confidence.
+            Dictionary with at least ``sql`` (str), ``explanation`` (str),
+            ``tables_used`` (list), and ``confidence`` (float).
+
+        Raises:
+            LLMResponseParseError: If the response cannot be parsed.
         """
         import re
 
-        if not content:
+        raw = (content or "").strip()
+        if not raw:
+            raise LLMResponseParseError("LLM returned an empty response", raw)
+
+        def _coerce(parsed: Any) -> Optional[Dict[str, Any]]:
+            """Validate that parsed JSON is a dict with a non-empty 'sql' key."""
+            if not isinstance(parsed, dict):
+                return None
+            sql = parsed.get("sql")
+            if not isinstance(sql, str) or not sql.strip():
+                return None
             return {
-                "sql": "",
-                "explanation": "Empty LLM response",
-                "tables_used": [],
-                "confidence": 0.0,
+                "sql": sql.strip().rstrip(";"),
+                "explanation": str(parsed.get("explanation", "")).strip(),
+                "tables_used": list(parsed.get("tables_used") or []),
+                "confidence": float(parsed.get("confidence", 0.0) or 0.0),
             }
 
-        # Try to extract JSON from response
-        # 1. Try to find JSON block in markdown
-        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+        # 1. JSON in markdown code block
+        json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
         if json_match:
             try:
-                return json.loads(json_match.group(1))
+                coerced = _coerce(json.loads(json_match.group(1)))
+                if coerced is not None:
+                    return coerced
             except json.JSONDecodeError:
                 pass
 
-        # 2. Try to find balanced JSON object (handle nested braces)
-        for match in re.finditer(r"\{", content):
+        # 2. First balanced JSON object that contains a sql key
+        for match in re.finditer(r"\{", raw):
             start = match.start()
             depth = 0
-            for i in range(start, len(content)):
-                if content[i] == "{":
+            for i in range(start, len(raw)):
+                if raw[i] == "{":
                     depth += 1
-                elif content[i] == "}":
+                elif raw[i] == "}":
                     depth -= 1
                     if depth == 0:
                         try:
-                            result = json.loads(content[start : i + 1])
-                            if "sql" in result:
-                                return result
+                            coerced = _coerce(json.loads(raw[start : i + 1]))
+                            if coerced is not None:
+                                return coerced
                         except json.JSONDecodeError:
                             pass
                         break
 
-        # 3. Try parsing entire content as JSON
+        # 3. Entire content is JSON
         try:
-            result = json.loads(content)
-            if isinstance(result, dict):
-                return result
+            coerced = _coerce(json.loads(raw))
+            if coerced is not None:
+                return coerced
         except json.JSONDecodeError:
             pass
 
-        # 4. Try to extract SQL from text
-        sql_match = re.search(
-            r"```(?:sql)?\s*(SELECT.*?)\s*```", content, re.DOTALL | re.IGNORECASE
+        raise LLMResponseParseError(
+            "LLM response did not contain a parseable SQL payload "
+            "(expected JSON with a 'sql' field).",
+            raw,
         )
-        if sql_match:
-            return {
-                "sql": sql_match.group(1).strip().rstrip(";"),
-                "explanation": "",
-                "tables_used": [],
-                "confidence": 0.6,
-            }
-
-        # 5. Try to find SELECT statement directly
-        sql_match = re.search(
-            r"(SELECT\s+[\s\S]+?FROM\s+\w+[\s\S]*?)(?:;|$|\n\n)", content, re.IGNORECASE
-        )
-        if sql_match:
-            return {
-                "sql": sql_match.group(1).strip().rstrip(";"),
-                "explanation": "Extracted SQL from text response",
-                "tables_used": [],
-                "confidence": 0.5,
-            }
-
-        # 6. Last resort - return whole content as explanation, no SQL
-        logger.warning(f"Could not extract SQL from LLM response: {content[:200]}")
-        return {
-            "sql": "",
-            "explanation": content,
-            "tables_used": [],
-            "confidence": 0.3,
-        }
 
     async def _execute_sql(self, sql: str) -> QueryResult:
         """Execute SQL query.
