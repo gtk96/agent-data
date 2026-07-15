@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from agent_data.core.models import Query, QueryResult, QueryType
 from agent_data.llm.base import BaseLLM, Message
 from agent_data.nl2sql.audit import SQLAuditor
+from agent_data.core.redact import redact_pii
 from agent_data.nl2sql.formatter import ResultFormatter
 from agent_data.nl2sql.memory import ConversationMemory, ConversationTurn
 from agent_data.nl2sql.prompt import PromptManager
@@ -154,6 +155,7 @@ class NL2SQLEngine:
             data = query_result.data if query_result.data else []
 
             # 6. Format answer using LLM
+            data = redact_pii(data)
             answer = await self._format_answer(question, sql, data)
 
             # 7. Save to conversation memory

@@ -81,3 +81,32 @@ def scrub_mapping(
         for k, v in mapping.items()
         if not (isinstance(k, str) and k.lower() in forbidden_lower)
     }
+
+
+# ---------------------------------------------------------------------------
+# PII redaction — 对查询结果里的邮箱/手机/身份证自动脱敏
+# ---------------------------------------------------------------------------
+
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+_PHONE_RE = re.compile(r"1[3-9]\d{9}")
+_ID_CARD_RE = re.compile(r"\d{17}[\dXx]")
+
+
+def redact_pii(text):
+    """对字符串做 PII 脱敏（邮箱/手机/身份证）。
+
+    支持 str 和 list[dict] 两种输入，list[dict] 时对每个字符串值脱敏。
+    """
+    if isinstance(text, list):
+        return [_redact_pii_row(row) for row in text]
+    if not isinstance(text, str):
+        text = str(text)
+    text = _EMAIL_RE.sub("[EMAIL_MASKED]", text)
+    text = _PHONE_RE.sub("[PHONE_MASKED]", text)
+    text = _ID_CARD_RE.sub("[IDCARD_MASKED]", text)
+    return text
+
+
+def _redact_pii_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """对 dict 的每个字符串值做 PII 脱敏。"""
+    return {k: redact_pii(v) if isinstance(v, str) else v for k, v in row.items()}
