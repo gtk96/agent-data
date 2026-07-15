@@ -1,4 +1,5 @@
 """错误：mock /api/v1/query 抛 500，UI 显示运行失败。"""
+
 import re
 
 from playwright.sync_api import expect

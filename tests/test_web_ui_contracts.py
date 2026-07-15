@@ -1,4 +1,5 @@
 """API 契约稳定性测试 — 与前端 UI 强耦合的字段顺序/类型校验。"""
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -12,6 +13,7 @@ import asyncio
 @pytest.fixture
 def client():
     """Build a FastAPI TestClient with an in-memory SQLite engine (no LLM)."""
+
     async def setup():
         cfg = DataSourceConfig(name="x", type=DataSourceType.SQL, connection=":memory:")
         c = SQLConnector(cfg)
@@ -36,7 +38,9 @@ def test_health_field_types(client):
 
 
 def test_query_response_shape(client):
-    r = client.post("/api/v1/query", json={"question": "select count from users", "session_id": "t1"})
+    r = client.post(
+        "/api/v1/query", json={"question": "select count from users", "session_id": "t1"}
+    )
     assert r.status_code == 200
     body = r.json()
     for key in ("session_id", "question", "answer", "data", "confidence"):

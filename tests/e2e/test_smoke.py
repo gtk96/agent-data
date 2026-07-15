@@ -1,4 +1,5 @@
 """冒烟：open page → 输入问题 → 看到助手气泡。"""
+
 import re
 
 from playwright.sync_api import expect

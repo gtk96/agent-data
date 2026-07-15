@@ -1,4 +1,5 @@
 """End-to-end fixtures: 起 run_demo.py 后台、给 TestClient 全局用。"""
+
 import os
 import signal
 import subprocess
@@ -29,6 +30,7 @@ def demo_server():
     while time.time() < deadline:
         try:
             import urllib.request
+
             urllib.request.urlopen(base + "/api/v1/health", timeout=2)
             break
         except Exception:

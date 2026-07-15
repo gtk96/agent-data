@@ -1,4 +1,5 @@
 """空状态渲染：4 个示例 chip 都存在且可点击。"""
+
 from playwright.sync_api import expect
 
 
