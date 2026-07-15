@@ -14,7 +14,7 @@ from agent_data.llm.base import BaseLLM, Message
 from agent_data.nl2sql.audit import SQLAuditor
 from agent_data.core.redact import redact_pii
 from agent_data.nl2sql.formatter import ResultFormatter
-from agent_data.nl2sql.memory import ConversationMemory, ConversationTurn
+from agent_data.nl2sql.memory import ConversationMemory, ConversationTurn, SQLiteConversationMemory
 from agent_data.nl2sql.prompt import PromptManager
 from agent_data.nl2sql.schema_manager import SchemaManager
 from agent_data.nl2sql.semantic import SemanticLayer
@@ -89,7 +89,7 @@ class NL2SQLEngine:
         self.validator = SQLValidator(
             ValidatorConfig(readonly=self.config.readonly, max_rows=self.config.max_rows)
         )
-        self.memory = ConversationMemory(max_turns=self.config.max_turns)
+        self.memory = SQLiteConversationMemory(max_turns=self.config.max_turns)
         self.formatter = ResultFormatter()
 
         # Load business semantics from YAML if available

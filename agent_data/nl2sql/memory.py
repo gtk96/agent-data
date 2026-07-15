@@ -116,3 +116,126 @@ class ConversationMemory:
             Number of active sessions.
         """
         return len(self._sessions)
+
+
+class SQLiteConversationMemory:
+    """SQLite-backed conversation memory. Drop-in replacement for ConversationMemory."""
+
+    def __init__(
+        self,
+        db_path: str = "./data/conversations.db",
+        max_turns: int = 10,
+        ttl_seconds: int = 3600,
+    ):
+        self.db_path = db_path
+        self.max_turns = max_turns
+        self.ttl_seconds = ttl_seconds
+        from pathlib import Path
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def _init_db(self):
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                question TEXT NOT NULL,
+                sql TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                timestamp REAL NOT NULL,
+                metadata_json TEXT DEFAULT '{}'
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_session ON conversations(session_id, timestamp)"
+        )
+        conn.close()
+
+    def _conn(self):
+        import sqlite3
+        return sqlite3.connect(self.db_path)
+
+    def add_turn(self, session_id: str, turn: ConversationTurn):
+        import json
+        conn = self._conn()
+        conn.execute(
+            "INSERT INTO conversations (session_id, question, sql, answer, timestamp, metadata_json) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                session_id,
+                turn.question,
+                turn.sql,
+                turn.answer,
+                turn.timestamp,
+                json.dumps(turn.metadata, ensure_ascii=False),
+            ),
+        )
+        # Trim to max_turns: delete oldest rows beyond the limit
+        conn.execute(
+            """
+            DELETE FROM conversations WHERE id IN (
+                SELECT id FROM conversations WHERE session_id = ?
+                ORDER BY timestamp DESC
+                LIMIT -1 OFFSET ?
+            )
+            """,
+            (session_id, self.max_turns),
+        )
+        conn.commit()
+        conn.close()
+
+    def get_history(self, session_id: str, n: Optional[int] = None) -> List[ConversationTurn]:
+        import json
+        conn = self._conn()
+        limit = n or self.max_turns
+        rows = conn.execute(
+            "SELECT question, sql, answer, timestamp, metadata_json "
+            "FROM conversations WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?",
+            (session_id, limit),
+        ).fetchall()
+        conn.close()
+        return [
+            ConversationTurn(
+                question=r[0],
+                sql=r[1],
+                answer=r[2],
+                timestamp=r[3],
+                metadata=json.loads(r[4]),
+            )
+            for r in reversed(rows)
+        ]
+
+    def get_context_string(self, session_id: str) -> str:
+        history = self.get_history(session_id)
+        if not history:
+            return ""
+        lines = ["## Conversation History"]
+        for i, turn in enumerate(history[-3:], 1):
+            lines.append(f"\n### Turn {i}")
+            lines.append(f"User: {turn.question}")
+            lines.append(f"SQL: {turn.sql}")
+            lines.append(f"Answer: {turn.answer}")
+        return "\n".join(lines)
+
+    def clear_session(self, session_id: str):
+        conn = self._conn()
+        conn.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
+        conn.commit()
+        conn.close()
+
+    def cleanup_expired(self):
+        cutoff = time.time() - self.ttl_seconds
+        conn = self._conn()
+        conn.execute("DELETE FROM conversations WHERE timestamp < ?", (cutoff,))
+        conn.commit()
+        conn.close()
+
+    def get_session_count(self) -> int:
+        conn = self._conn()
+        count = conn.execute(
+            "SELECT COUNT(DISTINCT session_id) FROM conversations"
+        ).fetchone()[0]
+        conn.close()
+        return count
