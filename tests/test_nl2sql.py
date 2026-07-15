@@ -290,8 +290,8 @@ class TestEngineQueryErrorHandling:
         assert "parse" in result.explanation.lower() or "llm" in result.explanation.lower()
         assert "Raw response" in result.answer or "couldn't" in result.answer
 
-        # LLM should have been called exactly twice (initial + one retry)
-        assert llm.complete.await_count == 2
+        # LLM should have been called exactly 3 times (follow-up resolve + initial + retry)
+        assert llm.complete.await_count == 3
 
     @pytest.mark.asyncio
     async def test_query_succeeds_on_retry_when_initial_response_is_prose(self):
@@ -350,5 +350,5 @@ class TestEngineQueryErrorHandling:
         # Retry should have produced the SQL; final answer from format step.
         assert result.sql == "SELECT 1"
         assert "ok" in result.explanation
-        # 3 LLM calls: initial + 1 retry + 1 answer-format
-        assert llm.complete.await_count == 3
+        # 4 LLM calls: follow-up resolve + initial + retry + answer-format
+        assert llm.complete.await_count == 4

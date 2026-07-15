@@ -128,9 +128,16 @@ class NL2SQLEngine:
             if self.config.enable_memory:
                 conversation_context = self.memory.get_context_string(session_id)
 
+            # 2.5. Resolve follow-up references if conversation exists
+            resolved_question = question
+            if conversation_context:
+                resolved_question = await self._resolve_followup(
+                    conversation_context, question
+                )
+
             # 3. Generate SQL using LLM
             sql_result = await self._generate_sql(
-                question=question,
+                question=resolved_question,
                 schema_info=schema_info,
                 conversation_context=conversation_context,
             )
@@ -154,11 +161,14 @@ class NL2SQLEngine:
                 )
 
             # 5. Execute SQL query
-            query_result = await self._execute_sql(sql)
+            query_result = await self._execute_sql(sql, session_id=session_id)
             data = query_result.data if query_result.data else []
 
             # 6. Format answer using LLM
             data = redact_pii(data)
+            # Save generate-phase tokens before _format_answer overwrites them
+            generate_input_tokens = self._last_input_tokens
+            generate_output_tokens = self._last_output_tokens
             answer = await self._format_answer(question, sql, data)
 
             # 7. Save to conversation memory
@@ -172,10 +182,6 @@ class NL2SQLEngine:
 
             query_time_ms = (time.monotonic() - start_time) * 1000
 
-            # Accumulate usage from _format_answer LLM call
-            answer_input = getattr(self, '_last_input_tokens', 0)
-            answer_output = getattr(self, '_last_output_tokens', 0)
-
             return NL2SQLResult(
                 question=question,
                 sql=sql,
@@ -186,8 +192,8 @@ class NL2SQLEngine:
                 tables_used=tables_used,
                 query_time_ms=query_time_ms,
                 session_id=session_id,
-                input_tokens=self._last_input_tokens + answer_input,
-                output_tokens=self._last_output_tokens + answer_output,
+                input_tokens=generate_input_tokens + self._last_input_tokens,
+                output_tokens=generate_output_tokens + self._last_output_tokens,
             )
 
         except LLMResponseParseError as e:
@@ -271,6 +277,42 @@ class NL2SQLEngine:
                         f"LLM response still not parseable after retry: {exc.raw_response[:200]}"
                     )
                     raise
+
+    async def _resolve_followup(
+        self, conversation_context: str, question: str
+    ) -> str:
+        """Detect follow-up references and rewrite the question to be explicit.
+
+        Uses a lightweight LLM call to resolve pronouns (他/它/她/这个/那个)
+        and references (上一个/上次/前面) to concrete entities from the
+        conversation history.
+
+        Args:
+            conversation_context: Formatted conversation history from memory.
+            question: Current user question that may contain references.
+
+        Returns:
+            Rewritten self-contained question. Falls back to original on failure.
+        """
+        try:
+            messages = PromptManager.build_followup_resolve_messages(
+                history=conversation_context,
+                question=question,
+            )
+            llm_messages = [Message(role=m["role"], content=m["content"]) for m in messages]
+            response = await self.llm.complete(llm_messages, max_tokens=200)
+            resolved = response.content.strip()
+
+            # Safety: if LLM returns garbage or too long, keep original
+            if not resolved or len(resolved) > len(question) * 3:
+                return question
+
+            logger.info(f"Follow-up resolved: {question!r} -> {resolved!r}")
+            return resolved
+
+        except Exception as e:
+            logger.warning(f"Follow-up resolution failed, using original: {e}")
+            return question
 
     def _build_retry_messages(self, question: str, previous_response: str) -> List[Message]:
         """Build a corrective retry prompt that pushes the LLM to emit JSON.
@@ -384,7 +426,7 @@ class NL2SQLEngine:
             raw,
         )
 
-    async def _execute_sql(self, sql: str) -> QueryResult:
+    async def _execute_sql(self, sql: str, session_id: str = "default") -> QueryResult:
         """Execute SQL query.
 
         Args:
@@ -417,7 +459,7 @@ class NL2SQLEngine:
             elapsed = (time.monotonic() - start) * 1000
             row_count = len(result.data) if result.data else 0
             self.auditor.log(
-                session_id="default",
+                session_id=session_id,
                 sql=sql,
                 row_count=row_count,
                 success=True,
@@ -427,7 +469,7 @@ class NL2SQLEngine:
         except asyncio.TimeoutError:
             elapsed = (time.monotonic() - start) * 1000
             self.auditor.log(
-                session_id="default",
+                session_id=session_id,
                 sql=sql,
                 row_count=0,
                 success=False,
@@ -463,6 +505,9 @@ class NL2SQLEngine:
 
         llm_messages = [Message(role=m["role"], content=m["content"]) for m in messages]
         response = await self.llm.complete(llm_messages)
+        # Track format-answer token usage
+        self._last_input_tokens = response.usage.prompt_tokens
+        self._last_output_tokens = response.usage.completion_tokens
 
         return response.content
 

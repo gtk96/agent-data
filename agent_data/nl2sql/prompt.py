@@ -75,6 +75,42 @@ Please provide your answer directly, without prefixes like "Based on the query r
 
 Please determine if the current question is independent or a follow-up. If it's a follow-up, combine the conversation history to understand the user's intent."""
 
+    FOLLOWUP_RESOLVE_TEMPLATE = """You are a data analysis assistant. The user is asking a follow-up question about data.
+
+## Conversation History
+{history}
+
+## Current Question
+{question}
+
+Rewrite the current question to be self-contained and unambiguous, resolving any pronouns or references (他/它/她/这个/那个/上一个/上次/前面) to specific entities from the conversation history.
+
+Output ONLY the rewritten question in Chinese. No explanation, no JSON, no markdown."""
+
+    @classmethod
+    def build_followup_resolve_messages(
+        cls,
+        history: str,
+        question: str,
+    ) -> List[Dict[str, str]]:
+        """Build messages for resolving follow-up question references.
+
+        Args:
+            history: Conversation history context string.
+            question: Current user question that may contain references.
+
+        Returns:
+            List of message dictionaries for LLM.
+        """
+        user_content = cls.FOLLOWUP_RESOLVE_TEMPLATE.format(
+            history=history,
+            question=question,
+        )
+        return [
+            {"role": "system", "content": "You rewrite follow-up questions to be self-contained."},
+            {"role": "user", "content": user_content},
+        ]
+
     @classmethod
     def build_sql_generation_messages(
         cls,
