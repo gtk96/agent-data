@@ -55,6 +55,8 @@ class NL2SQLResult(BaseModel):
     tables_used: List[str] = Field(default_factory=list)
     query_time_ms: float = 0.0
     session_id: str = "default"
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class NL2SQLEngine:
@@ -162,6 +164,10 @@ class NL2SQLEngine:
 
             query_time_ms = (time.monotonic() - start_time) * 1000
 
+            # Accumulate usage from _format_answer LLM call
+            answer_input = getattr(self, '_last_input_tokens', 0)
+            answer_output = getattr(self, '_last_output_tokens', 0)
+
             return NL2SQLResult(
                 question=question,
                 sql=sql,
@@ -172,6 +178,8 @@ class NL2SQLEngine:
                 tables_used=tables_used,
                 query_time_ms=query_time_ms,
                 session_id=session_id,
+                input_tokens=self._last_input_tokens + answer_input,
+                output_tokens=self._last_output_tokens + answer_output,
             )
 
         except LLMResponseParseError as e:
@@ -234,6 +242,9 @@ class NL2SQLEngine:
         for attempt in range(2):
             response = await self.llm.complete(llm_messages)
             content = response.content.strip()
+            # Track token usage across both LLM calls
+            self._last_input_tokens = response.usage.prompt_tokens
+            self._last_output_tokens = response.usage.completion_tokens
             logger.info(
                 f"=== LLM RAW RESPONSE (attempt {attempt + 1}) ===\n" f"{content}\n=== END ==="
             )

@@ -114,6 +114,8 @@ async def nl2sql_query(request: NL2SQLQueryRequest, req: Request):
         row_count=len(result.data),
         confidence=result.confidence,
         query_time_ms=result.query_time_ms,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
     )
 
 

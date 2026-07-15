@@ -59,6 +59,8 @@ class NL2SQLQueryResponse(BaseModel):
     confidence: float = 0.0
     query_time_ms: float = 0.0
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 class SchemaResponse(BaseModel):
