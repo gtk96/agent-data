@@ -155,6 +155,23 @@ class SchemaManager:
 
         return "\n".join(lines)
 
+    def format_schema_with_semantics(self, semantic_layer=None) -> str:
+        """Append business semantics to schema prompt.
+
+        Args:
+            semantic_layer: SemanticLayer instance, or None to skip.
+
+        Returns:
+            Schema text + semantics text.
+        """
+        schema_text = self.format_schema_for_prompt()
+        if semantic_layer is None:
+            return schema_text
+        sem_text = semantic_layer.format_for_prompt()
+        if sem_text:
+            return schema_text + "\n" + sem_text
+        return schema_text
+
     async def refresh(self):
         """Force refresh schema cache."""
         self._cache = None

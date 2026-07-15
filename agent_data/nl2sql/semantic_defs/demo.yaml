@@ -1,0 +1,12 @@
+users:
+  id: "用户唯一标识，注册用户级别"
+  name: "用户昵称"
+  city: "用户所在城市，对应订单地址"
+
+products:
+  category: "商品类目，用于按类目统计销售"
+  price: "商品单价（元），不含运费和折扣"
+
+orders:
+  amount: "订单实付金额（元），已含折扣"
+  order_date: "订单创建日期，格式 YYYY-MM-DD"

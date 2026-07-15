@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -12,6 +14,7 @@ from agent_data.nl2sql.formatter import ResultFormatter
 from agent_data.nl2sql.memory import ConversationMemory, ConversationTurn
 from agent_data.nl2sql.prompt import PromptManager
 from agent_data.nl2sql.schema_manager import SchemaManager
+from agent_data.nl2sql.semantic import SemanticLayer
 from agent_data.nl2sql.validator import SQLValidator, ValidatorConfig
 
 logger = logging.getLogger(__name__)
@@ -84,6 +87,11 @@ class NL2SQLEngine:
         self.memory = ConversationMemory(max_turns=self.config.max_turns)
         self.formatter = ResultFormatter()
 
+        # Load business semantics from YAML if available
+        semantic_dir = Path(__file__).parent / "semantic_defs"
+        semantic_file = semantic_dir / "demo.yaml"
+        self.semantic_layer = SemanticLayer(str(semantic_file)) if semantic_file.exists() else None
+
     async def query(
         self,
         question: str,
@@ -104,7 +112,7 @@ class NL2SQLEngine:
 
         try:
             # 1. Get schema information
-            schema_info = self.schema_manager.format_schema_for_prompt()
+            schema_info = self.schema_manager.format_schema_with_semantics(self.semantic_layer)
 
             # 2. Get conversation context
             conversation_context = ""
