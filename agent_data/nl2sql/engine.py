@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from agent_data.core.models import Query, QueryResult, QueryType
 from agent_data.llm.base import BaseLLM, Message
+from agent_data.nl2sql.audit import SQLAuditor
 from agent_data.nl2sql.formatter import ResultFormatter
 from agent_data.nl2sql.memory import ConversationMemory, ConversationTurn
 from agent_data.nl2sql.prompt import PromptManager
@@ -94,6 +96,9 @@ class NL2SQLEngine:
         semantic_file = semantic_dir / "demo.yaml"
         self.semantic_layer = SemanticLayer(str(semantic_file)) if semantic_file.exists() else None
 
+        # SQL audit logger
+        self.auditor = SQLAuditor()
+
     async def query(
         self,
         question: str,
@@ -108,8 +113,6 @@ class NL2SQLEngine:
         Returns:
             NL2SQLResult with question, SQL, answer, and data.
         """
-        import time
-
         start_time = time.monotonic()
 
         try:
@@ -400,13 +403,32 @@ class NL2SQLEngine:
         )
 
         # Execute with timeout
+        start = time.monotonic()
         try:
             result = await asyncio.wait_for(
                 self.connector.execute(query),
                 timeout=self.config.timeout_seconds,
             )
+            elapsed = (time.monotonic() - start) * 1000
+            row_count = len(result.data) if result.data else 0
+            self.auditor.log(
+                session_id="default",
+                sql=sql,
+                row_count=row_count,
+                success=True,
+                query_time_ms=elapsed,
+            )
             return result
         except asyncio.TimeoutError:
+            elapsed = (time.monotonic() - start) * 1000
+            self.auditor.log(
+                session_id="default",
+                sql=sql,
+                row_count=0,
+                success=False,
+                query_time_ms=elapsed,
+                error="timeout",
+            )
             raise RuntimeError(f"Query timed out after {self.config.timeout_seconds} seconds")
 
     async def _format_answer(
