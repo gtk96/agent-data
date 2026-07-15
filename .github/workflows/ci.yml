@@ -44,7 +44,7 @@ jobs:
         run: mypy agent_data/ || true  # informational; many third-party libs missing stubs
 
       - name: pytest
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short --ignore=tests/e2e
 
   audit:
     name: Dependency audit

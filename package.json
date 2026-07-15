@@ -1,0 +1,11 @@
+{
+  "name": "agent-data-static-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/static/*.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

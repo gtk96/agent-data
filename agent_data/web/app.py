@@ -38,6 +38,7 @@ def create_app(
     app.state.data_sources = data_sources or []
 
     # CORS configuration
+    # TODO(prod): 收紧 CORSMiddleware.allow_origins 到具体域名；v1 仅 dev 用 "*"。
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

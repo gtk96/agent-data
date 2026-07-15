@@ -1,0 +1,157 @@
+:root {
+  /* colors */
+  --bg: #F7F7F8;
+  --surface: #FFFFFF;
+  --surface-muted: #F4F4F5;
+  --text: #111827;
+  --text-muted: #6B7280;
+  --border: #E5E7EB;
+  --accent: #4F46E5;
+  --accent-text: #FFFFFF;
+  --success: #10B981;
+  --error: #EF4444;
+  --code-bg: #F9FAFB;
+
+  /* sizes */
+  --fs-body: 16px;
+  --fs-caption: 13px;
+  --fs-table: 14px;
+  --fs-code: 13.5px;
+
+  /* spacing (8 步进) */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px;
+
+  /* radius / shadow */
+  --radius-lg: 12px;
+  --radius-bubble: 18px;
+  --radius-input: 22px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, sans-serif;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  min-width: 320px;
+}
+
+/* Header */
+.app-header {
+  position: sticky; top: 0; z-index: 10;
+  height: 64px; padding: 0 var(--s-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.app-title { font-size: var(--fs-body); font-weight: 600; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: var(--s-2); }
+.status-dot--ok { background: var(--success); }
+.status-dot--err { background: var(--error); }
+
+/* Chat scroll area */
+.chat {
+  max-width: 760px; margin: 0 auto;
+  padding: var(--s-5) var(--s-4); padding-bottom: 96px; /* room for sticky input */
+  display: flex; flex-direction: column; gap: var(--s-4);
+}
+.chat-empty {
+  text-align: center; padding: var(--s-7) var(--s-4);
+}
+.chat-empty h1 { font-size: var(--fs-body); margin: 0 0 var(--s-2) 0; font-weight: 600; }
+.chat-empty p { color: var(--text-muted); margin: 0 0 var(--s-5) 0; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--s-2); justify-content: center; }
+.chip {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3);
+  font-size: var(--fs-caption); cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Turn bubbles */
+.turn { display: flex; flex-direction: column; gap: var(--s-1); }
+.turn-meta { color: var(--text-muted); font-size: var(--fs-caption); }
+.turn-user .turn-meta { align-self: flex-end; }
+.turn-bubble {
+  max-width: 85%;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius-bubble);
+}
+.turn-user .turn-bubble {
+  background: var(--accent); color: var(--accent-text);
+  align-self: flex-end;
+}
+.turn-assistant .turn-bubble {
+  background: var(--surface-muted); color: var(--text);
+  align-self: flex-start;
+}
+.turn-assistant .turn-meta { align-self: flex-end; } /* assistant meta on right */
+
+/* Folded sections */
+.fold details { margin-top: var(--s-3); }
+.fold summary { cursor: pointer; color: var(--text-muted); font-size: var(--fs-caption); }
+.fold summary:hover { color: var(--accent); }
+.fold summary:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.table-card {
+  margin-top: var(--s-2);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: var(--s-3);
+  box-shadow: var(--shadow-card);
+  max-height: 320px; overflow: auto;
+}
+.table-card table { width: 100%; border-collapse: collapse; font-size: var(--fs-table); }
+.table-card th, .table-card td {
+  text-align: left; padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--border);
+}
+.table-card th { background: var(--code-bg); position: sticky; top: 0; }
+
+.sql-block {
+  margin-top: var(--s-2);
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: var(--s-3);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: var(--fs-code); line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.error-row { display: flex; align-items: center; gap: var(--s-3); margin-top: var(--s-3); }
+.retry-btn {
+  background: var(--accent); color: var(--accent-text);
+  border: 0; border-radius: var(--radius-sm); padding: var(--s-1) var(--s-3);
+  cursor: pointer; font-size: var(--fs-caption);
+}
+.retry-btn:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Sticky input bar */
+.composer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  padding: var(--s-3) var(--s-4);
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+.composer-inner {
+  max-width: 760px; margin: 0 auto;
+  display: flex; gap: var(--s-2); align-items: center;
+}
+.composer input {
+  flex: 1; padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border); border-radius: var(--radius-input);
+  background: var(--surface); font-size: var(--fs-body);
+  font-family: inherit; color: var(--text);
+}
+.composer input:focus { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--accent); }
+.composer input:disabled { opacity: 0.6; cursor: not-allowed; }
+.composer .spinner { color: var(--text-muted); font-size: var(--fs-caption); }
+
+@media (max-width: 480px) {
+  .chat { padding: var(--s-4) var(--s-3) 96px; }
+  .turn-bubble { max-width: 92%; }
+}
