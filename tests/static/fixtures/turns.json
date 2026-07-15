@@ -1,0 +1,23 @@
+{
+  "user_turn": {
+    "role": "user",
+    "content": "有多少用户？",
+    "ts": "2026-07-14T10:00:00Z"
+  },
+  "assistant_turn_ok": {
+    "role": "assistant",
+    "content": "当前数据库有 5 名用户。",
+    "sql": "SELECT COUNT(*) FROM users",
+    "rows": [{"count": 5}],
+    "columns": ["count"],
+    "ms": 23,
+    "ts": "2026-07-14T10:00:01Z"
+  },
+  "assistant_turn_err": {
+    "role": "assistant",
+    "content": "运行失败：网络异常，请检查连接",
+    "error": "fetch failed",
+    "retry": true,
+    "ts": "2026-07-14T10:00:02Z"
+  }
+}
