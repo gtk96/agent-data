@@ -73,6 +73,7 @@ class NL2SQLEngine:
         llm: BaseLLM,
         connector,
         config: Optional[Dict[str, Any]] = None,
+        tracer=None,
     ):
         """Initialize NL2SQL engine.
 
@@ -80,10 +81,12 @@ class NL2SQLEngine:
             llm: LLM instance for text generation.
             connector: Database connector (BaseConnector).
             config: Optional configuration dictionary.
+            tracer: Optional BaseTracer for OTel pipeline tracing.
         """
         self.llm = llm
         self.connector = connector
         self.config = NL2SQLConfig(**(config or {}))
+        self.tracer = tracer
 
         self.schema_manager = SchemaManager(connector)
         self.validator = SQLValidator(
