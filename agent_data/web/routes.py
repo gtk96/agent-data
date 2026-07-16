@@ -4,10 +4,13 @@ import logging
 import time
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from agent_data.nl2sql.engine import NL2SQLEngine
 from agent_data.nl2sql.history import QueryHistoryItem, QueryHistoryStorage
+from agent_data.web.auth import AuthManager, UserContext, Role, require_role
 from agent_data.web.schemas import (
     DataSourceInfo,
     HealthResponse,
@@ -33,6 +36,31 @@ router = APIRouter(tags=["nl2sql"])
 def get_engine(request: Request) -> NL2SQLEngine:
     """Get NL2SQL engine from app state."""
     return request.app.state.engine
+
+
+def get_auth(request: Request) -> AuthManager:
+    """Get auth manager from app state."""
+    return request.app.state.auth
+
+
+def get_current_user(
+    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+    auth: AuthManager = Depends(get_auth),
+) -> UserContext:
+    """FastAPI dependency: authenticate request by X-API-Key header.
+
+    Returns UserContext on success, raises 401 on missing/invalid key.
+    """
+    ctx = auth.authenticate(x_api_key)
+    if ctx is None:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    return ctx
+
+
+def require_admin(ctx: UserContext = Depends(get_current_user)) -> UserContext:
+    """FastAPI dependency: require admin role."""
+    require_role(ctx, Role.ADMIN)
+    return ctx
 
 
 @router.post("/v1/chat/completions", response_model=QueryResponse)
@@ -90,8 +118,12 @@ async def chat_completions(request: QueryRequest, req: Request):
 
 
 @router.post("/api/v1/query", response_model=NL2SQLQueryResponse)
-async def nl2sql_query(request: NL2SQLQueryRequest, req: Request):
-    """NL2SQL specific query endpoint with detailed response."""
+async def nl2sql_query(
+    request: NL2SQLQueryRequest,
+    req: Request,
+    ctx: UserContext = Depends(get_current_user),
+):
+    """NL2SQL specific query endpoint with detailed response. Requires API key."""
     engine = get_engine(req)
 
     session_id = request.session_id or str(uuid.uuid4())
@@ -223,8 +255,12 @@ async def health_check(req: Request):
 
 
 @router.post("/api/v1/sql/execute", response_model=SqlExecuteResponse)
-async def execute_sql(request: SqlExecuteRequest, req: Request):
-    """Execute SQL query directly.
+async def execute_sql(
+    request: SqlExecuteRequest,
+    req: Request,
+    ctx: UserContext = Depends(require_admin),
+):
+    """Execute SQL query directly. Requires admin role.
 
     This endpoint allows executing SQL queries directly,
     useful for debugging and manual queries.

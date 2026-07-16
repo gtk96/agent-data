@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from agent_data.web.auth import AuthManager
 from agent_data.web.routes import router
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,9 @@ def create_app(
     # Store engine in app state
     app.state.engine = engine
     app.state.data_sources = data_sources or []
+
+    # Auth manager (SQLite-backed user + API key store)
+    app.state.auth = AuthManager()
 
     # CORS configuration
     # TODO(prod): 收紧 CORSMiddleware.allow_origins 到具体域名；v1 仅 dev 用 "*"。
