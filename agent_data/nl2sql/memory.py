@@ -3,7 +3,7 @@
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -64,11 +64,12 @@ class ConversationMemory:
             history = history[-n:]
         return history
 
-    def get_context_string(self, session_id: str) -> str:
+    def get_context_string(self, session_id: str, recent_turns: int = 3) -> str:
         """Format conversation history as context string for LLM.
 
         Args:
             session_id: Session identifier.
+            recent_turns: Number of recent turns to keep in full detail.
 
         Returns:
             Formatted context string.
@@ -78,11 +79,36 @@ class ConversationMemory:
             return ""
 
         lines = ["## Conversation History"]
-        for i, turn in enumerate(history[-3:], 1):  # Last 3 turns
-            lines.append(f"\n### Turn {i}")
-            lines.append(f"User: {turn.question}")
-            lines.append(f"SQL: {turn.sql}")
-            lines.append(f"Answer: {turn.answer}")
+        if len(history) <= recent_turns:
+            for i, turn in enumerate(history, 1):
+                lines.append(f"\n### Turn {i}")
+                lines.append(f"User: {turn.question}")
+                lines.append(f"SQL: {turn.sql}")
+                lines.append(f"Answer: {turn.answer}")
+        else:
+            older_turns = history[:-recent_turns]
+            recent = history[-recent_turns:]
+
+            tables_mentioned = set()
+            question_patterns = []
+            for turn in older_turns:
+                import re
+                tables = re.findall(r"FROM\s+(\w+)", turn.sql.upper())
+                tables_mentioned.update(tables)
+                question_patterns.append(turn.question)
+
+            if tables_mentioned:
+                lines.append(f"\n### Earlier context ({len(older_turns)} turns ago)")
+                lines.append(
+                    f"Previously asked about: {', '.join(sorted(tables_mentioned))} tables. "
+                    f"Questions included: {'; '.join(question_patterns[-3:])}"
+                )
+
+            for i, turn in enumerate(recent, 1):
+                lines.append(f"\n### Turn {i}")
+                lines.append(f"User: {turn.question}")
+                lines.append(f"SQL: {turn.sql}")
+                lines.append(f"Answer: {turn.answer}")
 
         return "\n".join(lines)
 
@@ -116,6 +142,28 @@ class ConversationMemory:
             Number of active sessions.
         """
         return len(self._sessions)
+
+    def list_sessions(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """List active sessions with their last question and turn count.
+
+        Args:
+            limit: Maximum number of sessions to return.
+
+        Returns:
+            List of dicts with session_id, last_question, turn_count, last_timestamp.
+        """
+        sessions = []
+        for sid, turns in self._sessions.items():
+            if turns:
+                last = turns[-1]
+                sessions.append({
+                    "session_id": sid,
+                    "last_question": last.question,
+                    "turn_count": len(turns),
+                    "last_timestamp": last.timestamp,
+                })
+        sessions.sort(key=lambda x: x["last_timestamp"], reverse=True)
+        return sessions[:limit]
 
 
 class SQLiteConversationMemory:
@@ -173,12 +221,16 @@ class SQLiteConversationMemory:
             ),
         )
         # Trim to max_turns: delete oldest rows beyond the limit
+        # SQLite doesn't support LIMIT in DELETE, use subquery instead
         conn.execute(
             """
             DELETE FROM conversations WHERE id IN (
-                SELECT id FROM conversations WHERE session_id = ?
-                ORDER BY timestamp DESC
-                LIMIT -1 OFFSET ?
+                SELECT c1.id FROM conversations c1
+                JOIN (
+                    SELECT id, ROW_NUMBER() OVER (ORDER BY timestamp DESC) as rn
+                    FROM conversations WHERE session_id = ?
+                ) c2 ON c1.id = c2.id
+                WHERE c2.rn > ?
             )
             """,
             (session_id, self.max_turns),
@@ -207,17 +259,98 @@ class SQLiteConversationMemory:
             for r in reversed(rows)
         ]
 
-    def get_context_string(self, session_id: str) -> str:
+    def get_context_string(self, session_id: str, recent_turns: int = 3) -> str:
+        """Format conversation history as context string for LLM.
+
+        When conversation has more than `recent_turns` turns, the older turns
+        are compressed into a one-line summary, while the most recent turns
+        are kept in full detail.
+
+        Args:
+            session_id: Session identifier.
+            recent_turns: Number of recent turns to keep in full detail (default 3).
+
+        Returns:
+            Formatted context string.
+        """
         history = self.get_history(session_id)
         if not history:
             return ""
         lines = ["## Conversation History"]
-        for i, turn in enumerate(history[-3:], 1):
-            lines.append(f"\n### Turn {i}")
-            lines.append(f"User: {turn.question}")
-            lines.append(f"SQL: {turn.sql}")
-            lines.append(f"Answer: {turn.answer}")
+
+        if len(history) <= recent_turns:
+            # Few turns: show all in detail
+            for i, turn in enumerate(history, 1):
+                lines.append(f"\n### Turn {i}")
+                lines.append(f"User: {turn.question}")
+                lines.append(f"SQL: {turn.sql}")
+                lines.append(f"Answer: {turn.answer}")
+        else:
+            # Many turns: summarize older ones, show recent in detail
+            older_turns = history[:-recent_turns]
+            recent = history[-recent_turns:]
+
+            # Compress older turns into a summary
+            tables_mentioned = set()
+            question_patterns = []
+            for turn in older_turns:
+                # Extract table names from SQL
+                import re
+                tables = re.findall(r"FROM\s+(\w+)", turn.sql.upper())
+                tables_mentioned.update(tables)
+                # Keep first question of each older turn as pattern
+                question_patterns.append(turn.question)
+
+            if tables_mentioned:
+                lines.append(f"\n### Earlier context ({len(older_turns)} turns ago)")
+                lines.append(
+                    f"Previously asked about: {', '.join(sorted(tables_mentioned))} tables. "
+                    f"Questions included: {'; '.join(question_patterns[-3:])}"
+                )
+
+            # Show recent turns in full detail
+            for i, turn in enumerate(recent, 1):
+                lines.append(f"\n### Turn {i}")
+                lines.append(f"User: {turn.question}")
+                lines.append(f"SQL: {turn.sql}")
+                lines.append(f"Answer: {turn.answer}")
+
         return "\n".join(lines)
+
+    def list_sessions(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """List active sessions with their last question and turn count.
+
+        Args:
+            limit: Maximum number of sessions to return.
+
+        Returns:
+            List of dicts with session_id, last_question, turn_count, last_timestamp.
+        """
+        conn = self._conn()
+        rows = conn.execute(
+            """
+            SELECT session_id, question, timestamp,
+                   (SELECT COUNT(*) FROM conversations c2 WHERE c2.session_id = c1.session_id) as turn_count
+            FROM conversations c1
+            WHERE id IN (
+                SELECT id FROM conversations GROUP BY session_id
+                HAVING id = MAX(id)
+            )
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        conn.close()
+        return [
+            {
+                "session_id": r[0],
+                "last_question": r[1],
+                "turn_count": r[3],
+                "last_timestamp": r[2],
+            }
+            for r in rows
+        ]
 
     def clear_session(self, session_id: str):
         conn = self._conn()
