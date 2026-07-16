@@ -61,6 +61,7 @@ class NL2SQLQueryResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     input_tokens: int = 0
     output_tokens: int = 0
+    chart: Optional[Dict[str, Any]] = None
 
 
 class SchemaResponse(BaseModel):

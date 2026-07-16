@@ -103,6 +103,12 @@ async def nl2sql_query(request: NL2SQLQueryRequest, req: Request):
     if result.data:
         columns = list(result.data[0].keys())
 
+    # Suggest chart if data is suitable
+    chart_suggestion = None
+    if result.data and columns:
+        from agent_data.nl2sql.chart import suggest_chart
+        chart_suggestion = suggest_chart(result.data, columns)
+
     return NL2SQLQueryResponse(
         session_id=result.session_id,
         question=result.question,
@@ -116,6 +122,7 @@ async def nl2sql_query(request: NL2SQLQueryRequest, req: Request):
         query_time_ms=result.query_time_ms,
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
+        chart=chart_suggestion,
     )
 
 

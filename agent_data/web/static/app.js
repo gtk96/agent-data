@@ -53,9 +53,12 @@ export function renderTurn(turn, host) {
   }
   article.appendChild(bubble);
 
-  if (turn.role === 'assistant' && (turn.sql || turn.rows || turn.ms != null)) {
+  if (turn.role === 'assistant' && (turn.sql || turn.rows || turn.ms != null || turn.chart)) {
     const fold = document.createElement('div');
     fold.className = 'fold';
+    if (turn.chart) {
+      fold.appendChild(makeFold('📊 图表', renderChart(turn.chart)));
+    }
     if (turn.rows && turn.columns) {
       fold.appendChild(makeFold('▸ 表格 (' + (turn.rows.length || 0) + ' 行)', renderTable(turn.rows, turn.columns)));
     }
@@ -124,6 +127,50 @@ function renderSql(sql) {
   return pre;
 }
 
+function renderChart(chart) {
+  const container = document.createElement('div');
+  container.className = 'chart-container';
+  const canvas = document.createElement('canvas');
+  canvas.width = 400;
+  canvas.height = 250;
+  container.appendChild(canvas);
+
+  if (typeof Chart === 'undefined') {
+    container.textContent = '[Chart.js 未加载]';
+    return container;
+  }
+
+  const colors = [
+    '#4F46E5', '#10B981', '#F59E0B', '#EF4444',
+    '#8B5CF6', '#EC4899', '#14B8A6', '#6366F1',
+  ];
+
+  const datasets = chart.datasets.map((ds, i) => ({
+    ...ds,
+    backgroundColor: chart.type === 'pie' ? colors.slice(0, chart.labels.length) : colors[i % colors.length],
+    borderColor: chart.type === 'line' ? colors[i % colors.length] : 'transparent',
+    borderWidth: chart.type === 'line' ? 2 : 0,
+    fill: chart.type === 'line',
+  }));
+
+  new Chart(canvas, {
+    type: chart.type,
+    data: {
+      labels: chart.labels,
+      datasets,
+    },
+    options: {
+      responsive: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: chart.datasets.length > 1 },
+      },
+    },
+  });
+
+  return container;
+}
+
 // ---------- State + DOM wiring (runs only in browser) ----------
 function init() {
   const state = { turns: [], sessionId: localStorage.getItem('agentdata.session') || null };
@@ -179,6 +226,7 @@ function init() {
         rows: json.data || [],
         columns: json.columns || [],
         ms: Math.round(json.query_time_ms || 0),
+        chart: json.chart || null,
       };
       state.turns.push(turn);
       renderTurn(turn, host);
