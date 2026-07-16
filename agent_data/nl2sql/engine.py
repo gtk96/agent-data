@@ -1,5 +1,6 @@
 """NL2SQL core engine."""
 
+import hashlib
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ from agent_data.llm.base import BaseLLM, Message
 from agent_data.nl2sql.audit import SQLAuditor
 from agent_data.core.redact import redact_pii
 from agent_data.nl2sql.formatter import ResultFormatter
+from agent_data.nl2sql.cache import QueryCache
 from agent_data.nl2sql.memory import ConversationMemory, ConversationTurn, SQLiteConversationMemory
 from agent_data.nl2sql.prompt import PromptManager
 from agent_data.nl2sql.schema_manager import SchemaManager
@@ -44,6 +46,7 @@ class NL2SQLConfig(BaseModel):
     enable_memory: bool = Field(default=True, description="Enable conversation memory")
     max_turns: int = Field(default=10, ge=1, description="Maximum conversation turns to remember")
     readonly: bool = Field(default=True, description="Read-only mode")
+    cache_ttl: int = Field(default=300, ge=0, description="Query cache TTL in seconds. 0 to disable.")
 
 
 class NL2SQLResult(BaseModel):
@@ -103,6 +106,9 @@ class NL2SQLEngine:
         # SQL audit logger
         self.auditor = SQLAuditor()
 
+        # Query result cache
+        self.query_cache = QueryCache(ttl=self.config.cache_ttl)
+
     async def query(
         self,
         question: str,
@@ -134,6 +140,15 @@ class NL2SQLEngine:
                 resolved_question = await self._resolve_followup(
                     conversation_context, question
                 )
+
+            # 2.6. Check query cache
+            schema_hash = hashlib.md5(schema_info.encode()).hexdigest()[:16]
+            conv_hash = hashlib.md5(conversation_context.encode()).hexdigest()[:16] if conversation_context else ""
+            cache_key = QueryCache.generate_key(resolved_question, schema_hash, conv_hash)
+            cached_result = await self.query_cache.get(cache_key)
+            if cached_result is not None:
+                logger.info(f"Cache hit for question: {resolved_question[:50]}")
+                return NL2SQLResult(**cached_result, session_id=session_id)
 
             # 3. Generate SQL using LLM
             sql_result = await self._generate_sql(
@@ -182,7 +197,7 @@ class NL2SQLEngine:
 
             query_time_ms = (time.monotonic() - start_time) * 1000
 
-            return NL2SQLResult(
+            result = NL2SQLResult(
                 question=question,
                 sql=sql,
                 explanation=explanation,
@@ -195,6 +210,12 @@ class NL2SQLEngine:
                 input_tokens=generate_input_tokens + self._last_input_tokens,
                 output_tokens=generate_output_tokens + self._last_output_tokens,
             )
+
+            # 8. Cache the result (skip for follow-up questions with context)
+            if not conversation_context:
+                await self.query_cache.set(cache_key, result.model_dump())
+
+            return result
 
         except LLMResponseParseError as e:
             logger.error(f"LLM response could not be parsed: {e}")
