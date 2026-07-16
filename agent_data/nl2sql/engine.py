@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from agent_data.core.models import Query, QueryResult, QueryType
 from agent_data.llm.base import BaseLLM, Message
 from agent_data.nl2sql.audit import SQLAuditor
+from agent_data.nl2sql.answer import build_answer_messages, score_answer_quality
 from agent_data.core.redact import redact_pii
 from agent_data.nl2sql.formatter import ResultFormatter
 from agent_data.nl2sql.cache import QueryCache
@@ -507,6 +508,8 @@ class NL2SQLEngine:
     ) -> str:
         """Format query results as natural language answer.
 
+        Uses AnswerGenerator for style-aware generation with quality scoring.
+
         Args:
             question: Original user question.
             sql: Generated SQL query.
@@ -515,13 +518,11 @@ class NL2SQLEngine:
         Returns:
             Natural language answer.
         """
-        # Format result data for LLM
-        result_str = self.formatter.to_table_text(result_data, max_rows=10)
-
-        messages = PromptManager.build_result_format_messages(
+        # Use answer module for style-aware prompt generation
+        messages = build_answer_messages(
             question=question,
             sql=sql,
-            result_data=result_str,
+            result_data=result_data,
         )
 
         llm_messages = [Message(role=m["role"], content=m["content"]) for m in messages]
